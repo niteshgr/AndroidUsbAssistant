@@ -2,6 +2,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using AndroidUsbAssistant.Core.Interfaces;
+using AndroidUsbAssistant.Core.Services;
+using AndroidUsbAssistant.Core.Actions;
 using AndroidUsbAssistant.Infrastructure.Services;
 using AndroidUsbAssistant.App.Forms;
 
@@ -33,6 +35,9 @@ static class Program
                 services.AddSingleton<IConfigurationService, ConfigurationService>();
                 services.AddSingleton<IUsbDetector, WindowsUsbDetector>();
                 services.AddSingleton<IAdbService, AdbService>();
+                services.AddSingleton<IActionEngine, ActionEngine>();
+                services.AddSingleton<IAutomationAction, MockAction>();
+                services.AddSingleton<IAutomationAction, UsbTetherAction>();
 
                 // Application Context
                 services.AddSingleton<TrayApplicationContext>();

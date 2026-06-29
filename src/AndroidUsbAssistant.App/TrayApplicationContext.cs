@@ -21,8 +21,10 @@ public class TrayApplicationContext : ApplicationContext
     private readonly IUsbDetector _usbDetector;
     private readonly IConfigurationService _configService;
     private readonly IAdbService _adbService;
+    private readonly IActionEngine _actionEngine;
     private readonly Icon _customIcon;
     private readonly HashSet<string> _notifiedDevices = new();
+    private readonly HashSet<string> _executedDevices = new();
 
     private StatusForm? _statusForm;
     private SettingsForm? _settingsForm;
@@ -37,7 +39,8 @@ public class TrayApplicationContext : ApplicationContext
         IServiceProvider serviceProvider,
         IUsbDetector usbDetector,
         IConfigurationService configService,
-        IAdbService adbService)
+        IAdbService adbService,
+        IActionEngine actionEngine)
     {
         _logger = logger;
         _lifetime = lifetime;
@@ -45,6 +48,7 @@ public class TrayApplicationContext : ApplicationContext
         _usbDetector = usbDetector;
         _configService = configService;
         _adbService = adbService;
+        _actionEngine = actionEngine;
 
         _logger.LogInformation("Initializing TrayApplicationContext.");
 
@@ -194,6 +198,10 @@ public class TrayApplicationContext : ApplicationContext
             {
                 _notifiedDevices.RemoveWhere(s => !currentSerials.Contains(s));
             }
+            lock (_executedDevices)
+            {
+                _executedDevices.RemoveWhere(s => !currentSerials.Contains(s));
+            }
 
             var config = _configService.GetConfiguration();
 
@@ -205,21 +213,44 @@ public class TrayApplicationContext : ApplicationContext
                 }
 
                 var serial = device.SerialNumber;
-                bool alreadyNotified;
-                lock (_notifiedDevices)
-                {
-                    alreadyNotified = _notifiedDevices.Contains(serial);
-                }
 
-                if (!config.TrustedDevices.Contains(serial) && !alreadyNotified)
+                if (config.TrustedDevices.Contains(serial))
                 {
-                    lock (_notifiedDevices)
+                    bool alreadyExecuted;
+                    lock (_executedDevices)
                     {
-                        _notifiedDevices.Add(serial);
+                        alreadyExecuted = _executedDevices.Contains(serial);
                     }
 
-                    _logger.LogInformation("Detected untrusted device: {DisplayName}. Prompting user.", device.DisplayName);
-                    ShowTrustPrompt(device);
+                    if (!alreadyExecuted)
+                    {
+                        lock (_executedDevices)
+                        {
+                            _executedDevices.Add(serial);
+                        }
+
+                        _logger.LogInformation("Trusted device {DisplayName} connected. Running actions.", device.DisplayName);
+                        _ = _actionEngine.ExecuteActionsForDeviceAsync(serial);
+                    }
+                }
+                else
+                {
+                    bool alreadyNotified;
+                    lock (_notifiedDevices)
+                    {
+                        alreadyNotified = _notifiedDevices.Contains(serial);
+                    }
+
+                    if (!alreadyNotified)
+                    {
+                        lock (_notifiedDevices)
+                        {
+                            _notifiedDevices.Add(serial);
+                        }
+
+                        _logger.LogInformation("Detected untrusted device: {DisplayName}. Prompting user.", device.DisplayName);
+                        ShowTrustPrompt(device);
+                    }
                 }
             }
         }
@@ -248,11 +279,28 @@ public class TrayApplicationContext : ApplicationContext
         if (result == DialogResult.Yes)
         {
             _logger.LogInformation("User trusted device {Serial}", device.SerialNumber);
-            _ = AddDeviceToTrustedAsync(device.SerialNumber);
+            lock (_executedDevices)
+            {
+                _executedDevices.Add(device.SerialNumber);
+            }
+            _ = TrustDeviceAndRunActionsAsync(device.SerialNumber);
         }
         else
         {
             _logger.LogInformation("User declined to trust device {Serial}", device.SerialNumber);
+        }
+    }
+
+    private async Task TrustDeviceAndRunActionsAsync(string serial)
+    {
+        try
+        {
+            await AddDeviceToTrustedAsync(serial);
+            await _actionEngine.ExecuteActionsForDeviceAsync(serial);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to trust and execute actions for device {Serial}.", serial);
         }
     }
 
