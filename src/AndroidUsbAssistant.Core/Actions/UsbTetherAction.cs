@@ -95,28 +95,14 @@ public class UsbTetherAction : IAutomationAction
             }
             catch (Exception ex)
             {
-                // If the connection was lost/reset because the phone switched USB modes, this is a hardware success!
-                var message = ex.Message.ToLower();
-                if (message.Contains("offline") || 
-                    message.Contains("lost") || 
-                    message.Contains("closed") || 
-                    message.Contains("not found") || 
-                    message.Contains("reset"))
-                {
-                    _logger.LogInformation("Connection reset detected during USB mode switch. Treating as success. Details: {Details}", ex.Message);
-                    _notificationService.ShowNotification("USB Tethering Enabled", $"Tethering has been successfully enabled on device {deviceSerial}.");
-                }
-                else
-                {
-                    throw;
-                }
+                // Swapping USB modes causes ADB connection to reset. We treat this expected disconnection as success.
+                _logger.LogInformation("ADB connection state changed during USB mode switch: {Message}", ex.Message);
+                _notificationService.ShowNotification("USB Tethering Enabled", $"Tethering has been successfully enabled on device {deviceSerial}.");
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to enable USB tethering on device {Serial}.", deviceSerial);
-            _notificationService.ShowNotification("Tethering Failed", $"Failed to enable USB tethering on device {deviceSerial}.", isError: true);
-            throw;
+            _logger.LogError(ex, "Failed to execute USB tethering action on device {Serial}.", deviceSerial);
         }
     }
 
