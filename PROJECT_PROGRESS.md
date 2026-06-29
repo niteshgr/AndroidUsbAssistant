@@ -8,7 +8,7 @@ This file tracks the completion status of the project milestones.
 | :--- | :--- | :--- | :--- |
 | **Milestone 1** | **Foundation** | **Completed** | Solution, generic host, Dependency Injection, Logging, local JSON settings, System Tray. |
 | **Milestone 2** | **Native USB Detection** | **Completed** | Monitoring USB connection/disconnection events. |
-| Milestone 3 | ADB Integration | Pending | Interfacing with adb.exe to detect device models, status, and properties. |
+| **Milestone 3** | **ADB Integration** | **Completed** | Interfacing with adb.exe to detect device models, status, and properties. |
 | Milestone 4 | Trusted Devices | Pending | Trust confirmation UI flow and remembering trusted devices. |
 | Milestone 5 | Action Engine | Pending | Generic framework for executing custom actions. |
 | Milestone 6 | USB Tether Action | Pending | ADB shell command implementation for enabling USB tethering. |
@@ -35,3 +35,9 @@ This file tracks the completion status of the project milestones.
 * **Win32 Event Watcher**: Implemented `WindowsUsbDetector` inheriting from `NativeWindow` to intercept native `WM_DEVICECHANGE` window messages.
 * **USB Interface Filtering**: Registered for arrival and removal notifications via Win32 `RegisterDeviceNotification` using the standard USB Device Interface Class GUID `{A5DCBF10-6530-11D2-901F-00C04FB951ED}`.
 * **Application Hookup**: Wired `IUsbDetector` into the DI container and linked its events to the `TrayApplicationContext` log notifications.
+
+### Milestone 3: ADB Integration
+* **Service Modeling**: Defined the `AndroidDevice` representation and `IAdbService` interface inside `AndroidUsbAssistant.Core`.
+* **Subprocess Communication**: Implemented `AdbService` in `AndroidUsbAssistant.Infrastructure` to execute `adb.exe` processes asynchronously, handling standard stream redirections and timeout termination safely.
+* **Property Inspection**: Extracted device attributes (`ro.product.model` and `ro.product.manufacturer`) for active, authorized ADB devices.
+* **UI Integration**: Extended `StatusForm` to show live ADB status and a scrollable list of connected devices, refreshing automatically on USB device changes.
