@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using AndroidUsbAssistant.App.Forms;
+using AndroidUsbAssistant.App.Services;
 using AndroidUsbAssistant.Core.Interfaces;
 using AndroidUsbAssistant.Core.Models;
 
@@ -71,6 +72,10 @@ public class TrayApplicationContext : ApplicationContext
         // Subscribe to USB changes and start the detector
         _usbDetector.DeviceChanged += OnUsbDeviceChanged;
         _usbDetector.Start();
+
+        // Sync startup configuration with registry
+        var currentConfig = _configService.GetConfiguration();
+        StartupRegistryHelper.SetStartup(currentConfig.StartWithWindows);
     }
 
     private ContextMenuStrip CreateContextMenu()

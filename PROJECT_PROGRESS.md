@@ -12,7 +12,7 @@ This file tracks the completion status of the project milestones.
 | **Milestone 4** | **Trusted Devices** | **Completed** | Trust confirmation UI flow and remembering trusted devices. |
 | **Milestone 5** | **Action Engine** | **Completed** | Generic framework for executing custom actions. |
 | **Milestone 6** | **USB Tether Action** | **Completed** | ADB shell command implementation for enabling USB tethering. |
-| Milestone 7 | Settings | Pending | Complete settings management UI. |
+| **Milestone 7** | **Settings** | **Completed** | Complete settings management UI. |
 | Milestone 8 | Notifications | Pending | OS system notifications for connection events. |
 | Milestone 9 | Installer | Pending | Packaging the application for production deployment. |
 
@@ -58,3 +58,8 @@ This file tracks the completion status of the project milestones.
 * **Active USB Tethering**: Connected the `UsbTetherAction` to `IAdbService` inside `AndroidUsbAssistant.Core`.
 * **ADB Command Pipeline**: Programmed `UsbTetherAction` to execute `adb -s [Serial] shell svc usb setFunctions rndis` on the connected trusted device, triggering Android's native USB tethering service.
 * **Trace Logging**: Configured execution telemetry logging to monitor shell command output for debugging.
+
+### Milestone 7: Settings
+* **Trusted Device Management**: Expanded the `SettingsForm` with the ability to untrust/remove devices from the local settings configuration listbox.
+* **Windows Startup Integration**: Implemented `StartupRegistryHelper` to toggle Windows Registry settings (`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`), enabling the tray application to auto-boot on user logins cleanly.
+* **Active Syncing**: Configured the application context to automatically synchronise local settings configurations with the Windows Registry on launch.

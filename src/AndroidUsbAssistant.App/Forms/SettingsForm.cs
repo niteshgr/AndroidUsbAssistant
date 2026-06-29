@@ -2,16 +2,19 @@ using System.Windows.Forms;
 using System.Drawing;
 using AndroidUsbAssistant.Core.Interfaces;
 using AndroidUsbAssistant.Core.Models;
+using AndroidUsbAssistant.App.Services;
 
 namespace AndroidUsbAssistant.App.Forms;
 
 public class SettingsForm : Form
 {
     private readonly IConfigurationService _configService;
-    
+    private readonly List<string> _tempTrustedDevices = new();
+
     private TextBox? _txtAdbPath;
     private CheckBox? _chkStartWithWindows;
     private ListBox? _lstTrustedDevices;
+    private Button? _btnRemoveDevice;
 
     public SettingsForm(IConfigurationService configService)
     {
@@ -32,6 +35,7 @@ public class SettingsForm : Form
         Font = new Font("Segoe UI", 9.5f);
 
         var config = _configService.GetConfiguration();
+        _tempTrustedDevices.AddRange(config.TrustedDevices);
 
         // Title
         var lblTitle = new Label
@@ -96,24 +100,28 @@ public class SettingsForm : Form
         _lstTrustedDevices = new ListBox
         {
             Location = new Point(20, 205),
-            Size = new Size(440, 100),
+            Size = new Size(340, 100),
             BackColor = Color.FromArgb(37, 37, 38),
             ForeColor = Color.FromArgb(240, 240, 240),
             BorderStyle = BorderStyle.FixedSingle
         };
+        _lstTrustedDevices.SelectedIndexChanged += LstTrustedDevices_SelectedIndexChanged;
 
-        if (config.TrustedDevices.Count == 0)
+        _btnRemoveDevice = new Button
         {
-            _lstTrustedDevices.Items.Add("(No trusted devices remembered yet)");
-            _lstTrustedDevices.Enabled = false;
-        }
-        else
-        {
-            foreach (var device in config.TrustedDevices)
-            {
-                _lstTrustedDevices.Items.Add(device);
-            }
-        }
+            Text = "Remove",
+            Location = new Point(380, 204),
+            Size = new Size(80, 28),
+            FlatStyle = FlatStyle.Flat,
+            BackColor = Color.FromArgb(220, 53, 69), // Soft Red
+            ForeColor = Color.White,
+            Enabled = false
+        };
+        _btnRemoveDevice.FlatAppearance.BorderSize = 0;
+        _btnRemoveDevice.Click += BtnRemoveDevice_Click;
+
+        // Bind data initial
+        RefreshTrustedDevicesList();
 
         // Action Buttons Panel
         var line = new Panel
@@ -156,9 +164,50 @@ public class SettingsForm : Form
         Controls.Add(_chkStartWithWindows);
         Controls.Add(lblTrustedDevices);
         Controls.Add(_lstTrustedDevices);
+        Controls.Add(_btnRemoveDevice);
         Controls.Add(line);
         Controls.Add(btnSave);
         Controls.Add(btnCancel);
+    }
+
+    private void LstTrustedDevices_SelectedIndexChanged(object? sender, EventArgs e)
+    {
+        if (_lstTrustedDevices == null || _btnRemoveDevice == null) return;
+        _btnRemoveDevice.Enabled = _lstTrustedDevices.SelectedIndex >= 0 && _lstTrustedDevices.Enabled;
+    }
+
+    private void BtnRemoveDevice_Click(object? sender, EventArgs e)
+    {
+        if (_lstTrustedDevices == null || _lstTrustedDevices.SelectedIndex < 0) return;
+
+        var selectedSerial = _lstTrustedDevices.SelectedItem?.ToString();
+        if (!string.IsNullOrEmpty(selectedSerial))
+        {
+            _tempTrustedDevices.Remove(selectedSerial);
+            RefreshTrustedDevicesList();
+        }
+    }
+
+    private void RefreshTrustedDevicesList()
+    {
+        if (_lstTrustedDevices == null || _btnRemoveDevice == null) return;
+
+        _lstTrustedDevices.Items.Clear();
+        if (_tempTrustedDevices.Count == 0)
+        {
+            _lstTrustedDevices.Items.Add("(No trusted devices remembered yet)");
+            _lstTrustedDevices.Enabled = false;
+            _btnRemoveDevice.Enabled = false;
+        }
+        else
+        {
+            _lstTrustedDevices.Enabled = true;
+            foreach (var serial in _tempTrustedDevices)
+            {
+                _lstTrustedDevices.Items.Add(serial);
+            }
+            _btnRemoveDevice.Enabled = _lstTrustedDevices.SelectedIndex >= 0;
+        }
     }
 
     private void BtnBrowse_Click(object? sender, EventArgs e)
@@ -184,8 +233,15 @@ public class SettingsForm : Form
         config.AdbPath = _txtAdbPath?.Text ?? string.Empty;
         config.StartWithWindows = _chkStartWithWindows?.Checked ?? true;
 
+        // Apply device list modifications
+        config.TrustedDevices.Clear();
+        config.TrustedDevices.AddRange(_tempTrustedDevices);
+
         try
         {
+            // Sync Windows Startup configuration
+            StartupRegistryHelper.SetStartup(config.StartWithWindows);
+
             await _configService.UpdateConfigurationAsync(config);
             MessageBox.Show("Configuration saved successfully.", "Settings Saved", MessageBoxButtons.OK, MessageBoxIcon.Information);
             Close();
