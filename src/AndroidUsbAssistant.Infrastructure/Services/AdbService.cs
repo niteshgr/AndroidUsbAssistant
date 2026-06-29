@@ -116,6 +116,22 @@ public class AdbService : IAdbService
         }
     }
 
+    public async Task<bool> IsUsbTetheringActiveAsync(string deviceSerial)
+    {
+        try
+        {
+            var output = await ExecuteAdbCommandAsync($"-s {deviceSerial} shell getprop sys.usb.state");
+            var state = output.Trim();
+            _logger.LogDebug("Device {Serial} USB state: {State}", deviceSerial, state);
+            return state.Contains("rndis", StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to check USB tethering state for device {Serial}.", deviceSerial);
+            return false;
+        }
+    }
+
     private async Task<string> GetDevicePropertyAsync(string serialNumber, string propertyName)
     {
         try

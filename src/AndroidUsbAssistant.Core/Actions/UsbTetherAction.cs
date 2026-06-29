@@ -10,20 +10,44 @@ public class UsbTetherAction : IAutomationAction
     public string Description => "Enables USB tethering via ADB shell svc usb setFunctions rndis.";
 
     private readonly IAdbService _adbService;
+    private readonly IUserPromptService _promptService;
     private readonly ILogger<UsbTetherAction> _logger;
 
-    public UsbTetherAction(IAdbService adbService, ILogger<UsbTetherAction> logger)
+    public UsbTetherAction(
+        IAdbService adbService,
+        IUserPromptService promptService,
+        ILogger<UsbTetherAction> logger)
     {
         _adbService = adbService;
+        _promptService = promptService;
         _logger = logger;
     }
 
     public async Task ExecuteAsync(string deviceSerial, Dictionary<string, string> parameters)
     {
-        _logger.LogInformation("Enabling USB tethering on device {Serial}.", deviceSerial);
-
         try
         {
+            // Check if USB tethering is already active
+            _logger.LogInformation("Checking USB tethering status on device {Serial}.", deviceSerial);
+            if (await _adbService.IsUsbTetheringActiveAsync(deviceSerial))
+            {
+                _logger.LogInformation("USB tethering is already active on device {Serial}. Skipping.", deviceSerial);
+                return;
+            }
+
+            // Prompt user before enabling
+            var shouldTether = await _promptService.PromptYesNoAsync(
+                "Enable USB Tethering",
+                $"A trusted Android device ({deviceSerial}) has been connected.\n\nWould you like to enable USB Tethering on it?"
+            );
+
+            if (!shouldTether)
+            {
+                _logger.LogInformation("User chose not to enable USB tethering on device {Serial}.", deviceSerial);
+                return;
+            }
+
+            _logger.LogInformation("Enabling USB tethering on device {Serial}.", deviceSerial);
             var command = $"-s {deviceSerial} shell svc usb setFunctions rndis";
             _logger.LogInformation("Executing ADB command: adb {Command}", command);
 

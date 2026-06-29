@@ -253,6 +253,8 @@ public class TrayApplicationContext : ApplicationContext
                     }
                 }
             }
+
+            await UpdateTrayTooltipAsync(connectedDevices);
         }
         catch (Exception ex)
         {
@@ -297,6 +299,9 @@ public class TrayApplicationContext : ApplicationContext
         {
             await AddDeviceToTrustedAsync(serial);
             await _actionEngine.ExecuteActionsForDeviceAsync(serial);
+
+            var connectedDevices = await _adbService.GetConnectedDevicesAsync();
+            await UpdateTrayTooltipAsync(connectedDevices);
         }
         catch (Exception ex)
         {
@@ -319,6 +324,50 @@ public class TrayApplicationContext : ApplicationContext
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to save trusted device {Serial}.", serial);
+        }
+    }
+
+    private async Task UpdateTrayTooltipAsync(List<AndroidDevice> connectedDevices)
+    {
+        try
+        {
+            var activeTetherDevice = "";
+            foreach (var device in connectedDevices)
+            {
+                if (device.IsAuthorized && await _adbService.IsUsbTetheringActiveAsync(device.SerialNumber))
+                {
+                    activeTetherDevice = string.IsNullOrWhiteSpace(device.Model) ? device.SerialNumber : device.Model;
+                    break;
+                }
+            }
+
+            string text;
+            if (!string.IsNullOrEmpty(activeTetherDevice))
+            {
+                text = $"Android USB Assistant\nTethering: Active ({activeTetherDevice})";
+            }
+            else
+            {
+                text = "Android USB Assistant\nTethering: Inactive";
+            }
+
+            if (text.Length > 63)
+            {
+                text = text.Substring(0, 60) + "...";
+            }
+
+            if (SynchronizationContext.Current != null)
+            {
+                SynchronizationContext.Current.Post(_ => _notifyIcon.Text = text, null);
+            }
+            else
+            {
+                _notifyIcon.Text = text;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to update tray icon tooltip.");
         }
     }
 

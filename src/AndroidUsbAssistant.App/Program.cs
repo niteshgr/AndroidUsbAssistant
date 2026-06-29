@@ -6,6 +6,7 @@ using AndroidUsbAssistant.Core.Services;
 using AndroidUsbAssistant.Core.Actions;
 using AndroidUsbAssistant.Infrastructure.Services;
 using AndroidUsbAssistant.App.Forms;
+using AndroidUsbAssistant.App.Services;
 
 namespace AndroidUsbAssistant.App;
 
@@ -35,6 +36,7 @@ static class Program
                 services.AddSingleton<IConfigurationService, ConfigurationService>();
                 services.AddSingleton<IUsbDetector, WindowsUsbDetector>();
                 services.AddSingleton<IAdbService, AdbService>();
+                services.AddSingleton<IUserPromptService, UserPromptService>();
                 services.AddSingleton<IActionEngine, ActionEngine>();
                 services.AddSingleton<IAutomationAction, MockAction>();
                 services.AddSingleton<IAutomationAction, UsbTetherAction>();
