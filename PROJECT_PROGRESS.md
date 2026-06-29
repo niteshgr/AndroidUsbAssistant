@@ -14,7 +14,7 @@ This file tracks the completion status of the project milestones.
 | **Milestone 6** | **USB Tether Action** | **Completed** | ADB shell command implementation for enabling USB tethering. |
 | **Milestone 7** | **Settings** | **Completed** | Complete settings management UI. |
 | **Milestone 8** | **Notifications** | **Completed** | OS system notifications for connection events. |
-| Milestone 9 | Installer | Pending | Packaging the application for production deployment. |
+| **Milestone 9** | **Installer** | **Completed** | Packaging the application for production deployment. |
 
 ---
 
@@ -69,3 +69,9 @@ This file tracks the completion status of the project milestones.
 * **Native OS Telemetry**: Implemented `NotificationService` in the App project using standard thread-safe Windows Forms balloon tooltips (`NotifyIcon.ShowBalloonTip`) to respect OS Focus Assist settings.
 * **Device Connect/Disconnect Alerts**: Wired system tray alerts to fire whenever a trusted device connects or any active device disconnects (utilising an internal memory cache mapping device serials).
 * **Action Outcome Notifications**: Wired `UsbTetherAction` to fire success ("USB Tethering Enabled") or error ("Tethering Failed") notification balloons depending on execution outcomes.
+
+### Milestone 9: Installer
+* **Self-Contained Executable**: Configured single-file compilation (`PublishSingleFile=true`, `PublishReadyToRun=true`) to output a single unified executable carrying all .NET runtimes and DLL dependencies.
+* **Graphical WPF Setup Wizard**: Developed a dark-themed GUI installer (`Install.ps1`) using PowerShell and .NET WPF. Offers custom options for desktop/start menu shortcuts, custom installation directories, and system auto-boot registration.
+* **Registry & Link Management**: Wired the setup wizard to write to Windows Startup registry runs (`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`) and program shortcuts.
+* **Clean Uninstaller**: Created a robust `Uninstall.ps1` template that runs a detached background process to cleanly delete files, registry entries, and shortcuts.
