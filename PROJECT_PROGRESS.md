@@ -11,7 +11,7 @@ This file tracks the completion status of the project milestones.
 | **Milestone 3** | **ADB Integration** | **Completed** | Interfacing with adb.exe to detect device models, status, and properties. |
 | **Milestone 4** | **Trusted Devices** | **Completed** | Trust confirmation UI flow and remembering trusted devices. |
 | **Milestone 5** | **Action Engine** | **Completed** | Generic framework for executing custom actions. |
-| Milestone 6 | USB Tether Action | Pending | ADB shell command implementation for enabling USB tethering. |
+| **Milestone 6** | **USB Tether Action** | **Completed** | ADB shell command implementation for enabling USB tethering. |
 | Milestone 7 | Settings | Pending | Complete settings management UI. |
 | Milestone 8 | Notifications | Pending | OS system notifications for connection events. |
 | Milestone 9 | Installer | Pending | Packaging the application for production deployment. |
@@ -53,3 +53,8 @@ This file tracks the completion status of the project milestones.
 * **Parameter Customization**: Added action parameter dictionaries stored inside `settings.json` configurations.
 * **Base Testing Actions**: Implemented `MockAction` to log execution details and parameters, and a stubbed `UsbTetherAction` ready for Milestone 6.
 * **Pipeline Hookup**: Linked `TrayApplicationContext` to trigger the Action Engine asynchronously when a trusted device connects or immediately when a new device is trusted.
+
+### Milestone 6: USB Tether Action
+* **Active USB Tethering**: Connected the `UsbTetherAction` to `IAdbService` inside `AndroidUsbAssistant.Core`.
+* **ADB Command Pipeline**: Programmed `UsbTetherAction` to execute `adb -s [Serial] shell svc usb setFunctions rndis` on the connected trusted device, triggering Android's native USB tethering service.
+* **Trace Logging**: Configured execution telemetry logging to monitor shell command output for debugging.

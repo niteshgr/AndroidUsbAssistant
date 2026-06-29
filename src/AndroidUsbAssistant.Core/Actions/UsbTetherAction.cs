@@ -9,17 +9,33 @@ public class UsbTetherAction : IAutomationAction
     public string Name => "Enable USB Tethering";
     public string Description => "Enables USB tethering via ADB shell svc usb setFunctions rndis.";
 
+    private readonly IAdbService _adbService;
     private readonly ILogger<UsbTetherAction> _logger;
 
-    public UsbTetherAction(ILogger<UsbTetherAction> logger)
+    public UsbTetherAction(IAdbService adbService, ILogger<UsbTetherAction> logger)
     {
+        _adbService = adbService;
         _logger = logger;
     }
 
-    public Task ExecuteAsync(string deviceSerial, Dictionary<string, string> parameters)
+    public async Task ExecuteAsync(string deviceSerial, Dictionary<string, string> parameters)
     {
-        _logger.LogInformation("UsbTetherAction: Mock executing tethering action for device {Serial}.", deviceSerial);
-        _logger.LogInformation("Executing ADB Shell: adb -s {Serial} shell svc usb setFunctions rndis (Mocked for Milestone 5).", deviceSerial);
-        return Task.CompletedTask;
+        _logger.LogInformation("Enabling USB tethering on device {Serial}.", deviceSerial);
+
+        try
+        {
+            var command = $"-s {deviceSerial} shell svc usb setFunctions rndis";
+            _logger.LogInformation("Executing ADB command: adb {Command}", command);
+
+            var result = await _adbService.ExecuteAdbCommandAsync(command);
+
+            _logger.LogInformation("USB tethering command completed. ADB Output: {Output}", 
+                string.IsNullOrWhiteSpace(result) ? "Success (No Output)" : result.Trim());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to enable USB tethering on device {Serial}.", deviceSerial);
+            throw;
+        }
     }
 }
