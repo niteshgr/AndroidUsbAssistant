@@ -141,101 +141,6 @@ function UpdateUI() {
     }
 }
 
-$worker = New-Object System.ComponentModel.BackgroundWorker
-$worker.add_DoWork({
-    param($sender, $e)
-    
-    $args = $e.Argument
-    $destPath = $args[0]
-    $createShortcut = $args[1]
-    $startOnBoot = $args[2]
-    
-    # 1. Clean previous build folders if any
-    $publishFolder = Join-Path $PSScriptRoot "build\publish"
-    if (Test-Path $publishFolder) {
-        Remove-Item $publishFolder -Recurse -Force | Out-Null
-    }
-    
-    # 2. Compile using dotnet publish
-    $projectPath = Join-Path $PSScriptRoot "src\AndroidUsbAssistant.App\AndroidUsbAssistant.App.csproj"
-    $publishCmd = "dotnet publish `"$projectPath`" -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishReadyToRun=true -o `"$publishFolder`""
-    
-    # Run the shell command silently and capture errors
-    $processInfo = New-Object System.Diagnostics.ProcessStartInfo
-    $processInfo.FileName = "powershell.exe"
-    $processInfo.Arguments = "-NoProfile -Command `"$publishCmd`""
-    $processInfo.RedirectStandardError = $true
-    $processInfo.UseShellExecute = $false
-    $processInfo.CreateNoWindow = $true
-    
-    $process = [System.Diagnostics.Process]::Start($processInfo)
-    $process.WaitForExit()
-    $stdErr = $process.StandardError.ReadToEnd()
-    
-    if ($process.ExitCode -ne 0) {
-        throw "Compilation failed (Exit Code $($process.ExitCode)): $stdErr"
-    }
-    
-    $exeSource = Join-Path $publishFolder "AndroidUsbAssistant.App.exe"
-    if (-not (Test-Path $exeSource)) {
-        throw "Compilation output not found. Build process failed."
-    }
-    
-    # 3. Create destination directory
-    if (-not (Test-Path $destPath)) {
-        New-Item -Path $destPath -ItemType Directory -Force | Out-Null
-    }
-    
-    # 4. Copy binary
-    $exeDest = Join-Path $destPath "AndroidUsbAssistant.App.exe"
-    Copy-Item $exeSource $exeDest -Force
-    
-    # 5. Copy Uninstaller script
-    $uninstallerSource = Join-Path $PSScriptRoot "build\Uninstall.ps1"
-    $uninstallerDest = Join-Path $destPath "Uninstall.ps1"
-    Copy-Item $uninstallerSource $uninstallerDest -Force
-    
-    # 6. Create Shortcuts
-    $wshell = New-Object -ComObject Wscript.Shell
-    if ($createShortcut) {
-        $desktopPath = [Environment]::GetFolderPath("Desktop")
-        $shortcut = $wshell.CreateShortcut((Join-Path $desktopPath "Android USB Assistant.lnk"))
-        $shortcut.TargetPath = $exeDest
-        $shortcut.WorkingDirectory = $destPath
-        $shortcut.Description = "Android USB Assistant Desktop Entry"
-        $shortcut.Save()
-    }
-    
-    $startMenuFolder = Join-Path ([Environment]::GetFolderPath("StartMenu")) "Programs\Android USB Assistant"
-    if (-not (Test-Path $startMenuFolder)) {
-        New-Item -Path $startMenuFolder -ItemType Directory -Force | Out-Null
-    }
-    $shortcut = $wshell.CreateShortcut((Join-Path $startMenuFolder "Android USB Assistant.lnk"))
-    $shortcut.TargetPath = $exeDest
-    $shortcut.WorkingDirectory = $destPath
-    $shortcut.Description = "Android USB Assistant"
-    $shortcut.Save()
-    
-    # 7. Add Windows Startup registry key if requested
-    if ($startOnBoot) {
-        $regPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
-        Set-ItemProperty -Path $regPath -Name "AndroidUsbAssistant" -Value "`"$exeDest`"" -Force
-    }
-})
-
-$worker.add_RunWorkerCompleted({
-    param($sender, $e)
-    
-    if ($e.Error) {
-        [System.Windows.MessageBox]::Show("Setup was unable to compile or copy files.`n`nError details: $($e.Error.Message)", "Installation Error", 0, 16)
-        $script:currentScreen = 2
-        UpdateUI
-    } else {
-        $script:currentScreen = 4
-        UpdateUI
-    }
-})
-
 # Control Wire-up
 $btnNext.Add_Click({
     if ($script:currentScreen -eq 1) {
@@ -246,12 +151,94 @@ $btnNext.Add_Click({
         $script:currentScreen = 3
         UpdateUI
         
-        # Capture variables on dispatcher thread
-        $dest = $txtDestPath.Text
-        $shortcut = $chkDesktopShortcut.IsChecked
-        $startup = $chkStartOnBoot.IsChecked
+        # Force WPF UI layout refresh to show progress panel
+        [System.Windows.Threading.Dispatcher]::CurrentDispatcher.Invoke([Action]{}, "Background")
         
-        $worker.RunWorkerAsync(@($dest, $shortcut, $startup))
+        try {
+            $destPath = $txtDestPath.Text
+            $createShortcut = $chkDesktopShortcut.IsChecked
+            $startOnBoot = $chkStartOnBoot.IsChecked
+            
+            # 1. Clean previous build folders
+            $publishFolder = Join-Path $PSScriptRoot "build\publish"
+            if (Test-Path $publishFolder) {
+                Remove-Item $publishFolder -Recurse -Force | Out-Null
+            }
+            
+            # 2. Compile using dotnet publish
+            $projectPath = Join-Path $PSScriptRoot "src\AndroidUsbAssistant.App\AndroidUsbAssistant.App.csproj"
+            $publishCmd = "dotnet publish `"$projectPath`" -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishReadyToRun=true -o `"$publishFolder`""
+            
+            $processInfo = New-Object System.Diagnostics.ProcessStartInfo
+            $processInfo.FileName = "powershell.exe"
+            $processInfo.Arguments = "-NoProfile -Command `"$publishCmd`""
+            $processInfo.RedirectStandardError = $true
+            $processInfo.UseShellExecute = $false
+            $processInfo.CreateNoWindow = $true
+            
+            $process = [System.Diagnostics.Process]::Start($processInfo)
+            $process.WaitForExit()
+            $stdErr = $process.StandardError.ReadToEnd()
+            
+            if ($process.ExitCode -ne 0) {
+                throw "Compilation failed (Exit Code $($process.ExitCode)): $stdErr"
+            }
+            
+            $exeSource = Join-Path $publishFolder "AndroidUsbAssistant.App.exe"
+            if (-not (Test-Path $exeSource)) {
+                throw "Compilation output not found. Build process failed."
+            }
+            
+            # 3. Create destination directory
+            if (-not (Test-Path $destPath)) {
+                New-Item -Path $destPath -ItemType Directory -Force | Out-Null
+            }
+            
+            # 4. Copy binary
+            $exeDest = Join-Path $destPath "AndroidUsbAssistant.App.exe"
+            Copy-Item $exeSource $exeDest -Force
+            
+            # 5. Copy Uninstaller script
+            $uninstallerSource = Join-Path $PSScriptRoot "build\Uninstall.ps1"
+            $uninstallerDest = Join-Path $destPath "Uninstall.ps1"
+            Copy-Item $uninstallerSource $uninstallerDest -Force
+            
+            # 6. Create Shortcuts
+            $wshell = New-Object -ComObject Wscript.Shell
+            if ($createShortcut) {
+                $desktopPath = [Environment]::GetFolderPath("Desktop")
+                $shortcut = $wshell.CreateShortcut((Join-Path $desktopPath "Android USB Assistant.lnk"))
+                $shortcut.TargetPath = $exeDest
+                $shortcut.WorkingDirectory = $destPath
+                $shortcut.Description = "Android USB Assistant Desktop Entry"
+                $shortcut.Save()
+            }
+            
+            $startMenuFolder = Join-Path ([Environment]::GetFolderPath("StartMenu")) "Programs\Android USB Assistant"
+            if (-not (Test-Path $startMenuFolder)) {
+                New-Item -Path $startMenuFolder -ItemType Directory -Force | Out-Null
+            }
+            $shortcut = $wshell.CreateShortcut((Join-Path $startMenuFolder "Android USB Assistant.lnk"))
+            $shortcut.TargetPath = $exeDest
+            $shortcut.WorkingDirectory = $destPath
+            $shortcut.Description = "Android USB Assistant"
+            $shortcut.Save()
+            
+            # 7. Add Windows Startup registry key if requested
+            if ($startOnBoot) {
+                $regPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
+                Set-ItemProperty -Path $regPath -Name "AndroidUsbAssistant" -Value "`"$exeDest`"" -Force
+            }
+            
+            # Success
+            $script:currentScreen = 4
+            UpdateUI
+        }
+        catch {
+            [System.Windows.MessageBox]::Show("Setup was unable to compile or copy files.`n`nError details: $($_.Exception.Message)", "Installation Error", 0, 16)
+            $script:currentScreen = 2
+            UpdateUI
+        }
     }
     elseif ($script:currentScreen -eq 4) {
         if ($chkLaunchNow.IsChecked) {
