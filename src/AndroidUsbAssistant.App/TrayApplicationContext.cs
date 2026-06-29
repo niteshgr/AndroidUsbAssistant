@@ -178,6 +178,9 @@ public class TrayApplicationContext : ApplicationContext
     {
         try
         {
+            // Give the ADB daemon a short moment to register the new USB interface connection
+            await Task.Delay(1500);
+
             if (!await _adbService.IsAdbAvailableAsync())
             {
                 _logger.LogWarning("USB change detected but ADB daemon is not available.");
