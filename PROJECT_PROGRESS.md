@@ -9,7 +9,7 @@ This file tracks the completion status of the project milestones.
 | **Milestone 1** | **Foundation** | **Completed** | Solution, generic host, Dependency Injection, Logging, local JSON settings, System Tray. |
 | **Milestone 2** | **Native USB Detection** | **Completed** | Monitoring USB connection/disconnection events. |
 | **Milestone 3** | **ADB Integration** | **Completed** | Interfacing with adb.exe to detect device models, status, and properties. |
-| Milestone 4 | Trusted Devices | Pending | Trust confirmation UI flow and remembering trusted devices. |
+| **Milestone 4** | **Trusted Devices** | **Completed** | Trust confirmation UI flow and remembering trusted devices. |
 | Milestone 5 | Action Engine | Pending | Generic framework for executing custom actions. |
 | Milestone 6 | USB Tether Action | Pending | ADB shell command implementation for enabling USB tethering. |
 | Milestone 7 | Settings | Pending | Complete settings management UI. |
@@ -41,3 +41,8 @@ This file tracks the completion status of the project milestones.
 * **Subprocess Communication**: Implemented `AdbService` in `AndroidUsbAssistant.Infrastructure` to execute `adb.exe` processes asynchronously, handling standard stream redirections and timeout termination safely.
 * **Property Inspection**: Extracted device attributes (`ro.product.model` and `ro.product.manufacturer`) for active, authorized ADB devices.
 * **UI Integration**: Extended `StatusForm` to show live ADB status and a scrollable list of connected devices, refreshing automatically on USB device changes.
+
+### Milestone 4: Trusted Devices
+* **Dynamic Trust Popup**: Created a custom dark-themed `TrustDeviceForm` to display a newly connected device's manufacturer, model, and serial number, asking the user to trust it.
+* **Session Cache Management**: Integrated a session-level notified device cache (`HashSet<string>`) in `TrayApplicationContext` to prevent prompt spamming while allowing prompt triggers if the device is disconnected and reconnected.
+* **Configuration Storage**: Wired the trust dialog's confirmation to append trusted serial numbers to `settings.json` and persist them using `IConfigurationService`.

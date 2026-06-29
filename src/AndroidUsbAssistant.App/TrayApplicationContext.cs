@@ -1,11 +1,14 @@
 using System.Windows.Forms;
 using System.Drawing;
 using System.Runtime.InteropServices;
+using System.Collections.Generic;
+using System.Linq;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using AndroidUsbAssistant.App.Forms;
 using AndroidUsbAssistant.Core.Interfaces;
+using AndroidUsbAssistant.Core.Models;
 
 namespace AndroidUsbAssistant.App;
 
@@ -16,7 +19,10 @@ public class TrayApplicationContext : ApplicationContext
     private readonly IHostApplicationLifetime _lifetime;
     private readonly IServiceProvider _serviceProvider;
     private readonly IUsbDetector _usbDetector;
+    private readonly IConfigurationService _configService;
+    private readonly IAdbService _adbService;
     private readonly Icon _customIcon;
+    private readonly HashSet<string> _notifiedDevices = new();
 
     private StatusForm? _statusForm;
     private SettingsForm? _settingsForm;
@@ -29,12 +35,16 @@ public class TrayApplicationContext : ApplicationContext
         ILogger<TrayApplicationContext> logger,
         IHostApplicationLifetime lifetime,
         IServiceProvider serviceProvider,
-        IUsbDetector usbDetector)
+        IUsbDetector usbDetector,
+        IConfigurationService configService,
+        IAdbService adbService)
     {
         _logger = logger;
         _lifetime = lifetime;
         _serviceProvider = serviceProvider;
         _usbDetector = usbDetector;
+        _configService = configService;
+        _adbService = adbService;
 
         _logger.LogInformation("Initializing TrayApplicationContext.");
 
@@ -158,9 +168,107 @@ public class TrayApplicationContext : ApplicationContext
         }
     }
 
-    private void OnUsbDeviceChanged(object? sender, EventArgs e)
+    private async void OnUsbDeviceChanged(object? sender, EventArgs e)
     {
         _logger.LogInformation("USB device change event triggered in Tray.");
+        await ProcessDeviceChangesAsync();
+    }
+
+    private async Task ProcessDeviceChangesAsync()
+    {
+        try
+        {
+            if (!await _adbService.IsAdbAvailableAsync())
+            {
+                _logger.LogWarning("USB change detected but ADB daemon is not available.");
+                return;
+            }
+
+            var connectedDevices = await _adbService.GetConnectedDevicesAsync();
+            var currentSerials = connectedDevices.Select(d => d.SerialNumber).ToHashSet();
+
+            lock (_notifiedDevices)
+            {
+                _notifiedDevices.RemoveWhere(s => !currentSerials.Contains(s));
+            }
+
+            var config = _configService.GetConfiguration();
+
+            foreach (var device in connectedDevices)
+            {
+                if (!device.IsAuthorized)
+                {
+                    continue;
+                }
+
+                var serial = device.SerialNumber;
+                bool alreadyNotified;
+                lock (_notifiedDevices)
+                {
+                    alreadyNotified = _notifiedDevices.Contains(serial);
+                }
+
+                if (!config.TrustedDevices.Contains(serial) && !alreadyNotified)
+                {
+                    lock (_notifiedDevices)
+                    {
+                        _notifiedDevices.Add(serial);
+                    }
+
+                    _logger.LogInformation("Detected untrusted device: {DisplayName}. Prompting user.", device.DisplayName);
+                    ShowTrustPrompt(device);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error processing USB device changes.");
+        }
+    }
+
+    private void ShowTrustPrompt(AndroidDevice device)
+    {
+        if (SynchronizationContext.Current != null)
+        {
+            SynchronizationContext.Current.Post(_ => ShowTrustPromptInternal(device), null);
+        }
+        else
+        {
+            ShowTrustPromptInternal(device);
+        }
+    }
+
+    private void ShowTrustPromptInternal(AndroidDevice device)
+    {
+        using var form = new TrustDeviceForm(device);
+        var result = form.ShowDialog();
+        if (result == DialogResult.Yes)
+        {
+            _logger.LogInformation("User trusted device {Serial}", device.SerialNumber);
+            _ = AddDeviceToTrustedAsync(device.SerialNumber);
+        }
+        else
+        {
+            _logger.LogInformation("User declined to trust device {Serial}", device.SerialNumber);
+        }
+    }
+
+    private async Task AddDeviceToTrustedAsync(string serial)
+    {
+        try
+        {
+            var config = _configService.GetConfiguration();
+            if (!config.TrustedDevices.Contains(serial))
+            {
+                config.TrustedDevices.Add(serial);
+                await _configService.UpdateConfigurationAsync(config);
+                _logger.LogInformation("Device {Serial} added to trusted devices configuration.", serial);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to save trusted device {Serial}.", serial);
+        }
     }
 
     private void ExitApplication()
