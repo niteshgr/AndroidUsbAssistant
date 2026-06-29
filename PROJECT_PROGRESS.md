@@ -13,7 +13,7 @@ This file tracks the completion status of the project milestones.
 | **Milestone 5** | **Action Engine** | **Completed** | Generic framework for executing custom actions. |
 | **Milestone 6** | **USB Tether Action** | **Completed** | ADB shell command implementation for enabling USB tethering. |
 | **Milestone 7** | **Settings** | **Completed** | Complete settings management UI. |
-| Milestone 8 | Notifications | Pending | OS system notifications for connection events. |
+| **Milestone 8** | **Notifications** | **Completed** | OS system notifications for connection events. |
 | Milestone 9 | Installer | Pending | Packaging the application for production deployment. |
 
 ---
@@ -63,3 +63,9 @@ This file tracks the completion status of the project milestones.
 * **Trusted Device Management**: Expanded the `SettingsForm` with the ability to untrust/remove devices from the local settings configuration listbox.
 * **Windows Startup Integration**: Implemented `StartupRegistryHelper` to toggle Windows Registry settings (`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`), enabling the tray application to auto-boot on user logins cleanly.
 * **Active Syncing**: Configured the application context to automatically synchronise local settings configurations with the Windows Registry on launch.
+
+### Milestone 8: Notifications
+* **Notification Service Abstraction**: Defined `INotificationService` in the Core layer.
+* **Native OS Telemetry**: Implemented `NotificationService` in the App project using standard thread-safe Windows Forms balloon tooltips (`NotifyIcon.ShowBalloonTip`) to respect OS Focus Assist settings.
+* **Device Connect/Disconnect Alerts**: Wired system tray alerts to fire whenever a trusted device connects or any active device disconnects (utilising an internal memory cache mapping device serials).
+* **Action Outcome Notifications**: Wired `UsbTetherAction` to fire success ("USB Tethering Enabled") or error ("Tethering Failed") notification balloons depending on execution outcomes.

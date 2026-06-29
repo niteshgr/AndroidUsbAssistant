@@ -37,6 +37,7 @@ static class Program
                 services.AddSingleton<IUsbDetector, WindowsUsbDetector>();
                 services.AddSingleton<IAdbService, AdbService>();
                 services.AddSingleton<IUserPromptService, UserPromptService>();
+                services.AddSingleton<INotificationService, NotificationService>();
                 services.AddSingleton<IActionEngine, ActionEngine>();
                 services.AddSingleton<IAutomationAction, MockAction>();
                 services.AddSingleton<IAutomationAction, UsbTetherAction>();

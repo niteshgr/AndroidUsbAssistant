@@ -11,15 +11,18 @@ public class UsbTetherAction : IAutomationAction
 
     private readonly IAdbService _adbService;
     private readonly IUserPromptService _promptService;
+    private readonly INotificationService _notificationService;
     private readonly ILogger<UsbTetherAction> _logger;
 
     public UsbTetherAction(
         IAdbService adbService,
         IUserPromptService promptService,
+        INotificationService notificationService,
         ILogger<UsbTetherAction> logger)
     {
         _adbService = adbService;
         _promptService = promptService;
+        _notificationService = notificationService;
         _logger = logger;
     }
 
@@ -55,10 +58,13 @@ public class UsbTetherAction : IAutomationAction
 
             _logger.LogInformation("USB tethering command completed. ADB Output: {Output}", 
                 string.IsNullOrWhiteSpace(result) ? "Success (No Output)" : result.Trim());
+
+            _notificationService.ShowNotification("USB Tethering Enabled", $"Tethering has been successfully enabled on device {deviceSerial}.");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to enable USB tethering on device {Serial}.", deviceSerial);
+            _notificationService.ShowNotification("Tethering Failed", $"Failed to enable USB tethering on device {deviceSerial}.", isError: true);
             throw;
         }
     }

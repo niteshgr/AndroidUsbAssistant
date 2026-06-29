@@ -26,6 +26,7 @@ public class TrayApplicationContext : ApplicationContext
     private readonly Icon _customIcon;
     private readonly HashSet<string> _notifiedDevices = new();
     private readonly HashSet<string> _executedDevices = new();
+    private readonly Dictionary<string, string> _connectedDevicesCache = new();
     private IntPtr _hIcon = IntPtr.Zero;
 
     private StatusForm? _statusForm;
@@ -210,6 +211,32 @@ public class TrayApplicationContext : ApplicationContext
             var connectedDevices = await _adbService.GetConnectedDevicesAsync();
             var currentSerials = connectedDevices.Select(d => d.SerialNumber).ToHashSet();
 
+            // 1. Identify disconnected devices
+            List<KeyValuePair<string, string>> disconnectedDevices;
+            lock (_connectedDevicesCache)
+            {
+                disconnectedDevices = _connectedDevicesCache.Where(kv => !currentSerials.Contains(kv.Key)).ToList();
+                foreach (var device in disconnectedDevices)
+                {
+                    _connectedDevicesCache.Remove(device.Key);
+                }
+            }
+
+            // 2. Identify new devices
+            List<AndroidDevice> newlyConnectedDevices = new();
+            lock (_connectedDevicesCache)
+            {
+                foreach (var device in connectedDevices)
+                {
+                    if (!_connectedDevicesCache.ContainsKey(device.SerialNumber))
+                    {
+                        var displayName = string.IsNullOrWhiteSpace(device.Model) ? device.SerialNumber : device.Model;
+                        _connectedDevicesCache[device.SerialNumber] = displayName;
+                        newlyConnectedDevices.Add(device);
+                    }
+                }
+            }
+
             lock (_notifiedDevices)
             {
                 _notifiedDevices.RemoveWhere(s => !currentSerials.Contains(s));
@@ -220,6 +247,23 @@ public class TrayApplicationContext : ApplicationContext
             }
 
             var config = _configService.GetConfiguration();
+
+            // Trigger disconnect notifications
+            foreach (var device in disconnectedDevices)
+            {
+                _logger.LogInformation("Device disconnected: {Name} ({Serial})", device.Value, device.Key);
+                ShowTrayNotification("Device Disconnected", $"{device.Value} has been unplugged.", ToolTipIcon.Info);
+            }
+
+            // Trigger connect notifications for trusted devices
+            foreach (var device in newlyConnectedDevices)
+            {
+                if (device.IsAuthorized && config.TrustedDevices.Contains(device.SerialNumber))
+                {
+                    _logger.LogInformation("Trusted device connected: {Name} ({Serial})", device.DisplayName, device.SerialNumber);
+                    ShowTrayNotification("Device Connected", $"{device.DisplayName} has been plugged in.", ToolTipIcon.Info);
+                }
+            }
 
             foreach (var device in connectedDevices)
             {
@@ -275,6 +319,18 @@ public class TrayApplicationContext : ApplicationContext
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error processing USB device changes.");
+        }
+    }
+
+    public void ShowTrayNotification(string title, string message, ToolTipIcon icon)
+    {
+        if (SynchronizationContext.Current != null)
+        {
+            SynchronizationContext.Current.Post(_ => _notifyIcon.ShowBalloonTip(3000, title, message, icon), null);
+        }
+        else
+        {
+            _notifyIcon.ShowBalloonTip(3000, title, message, icon);
         }
     }
 
