@@ -1,0 +1,34 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - main
+      - feature/**
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+
+    runs-on: windows-latest
+
+    steps:
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore NuGet Packages
+        run: dotnet restore AndroidUsbAssistant.sln
+
+      - name: Build Solution
+        run: dotnet build AndroidUsbAssistant.sln --configuration Release --no-restore
+
+      - name: Run Tests
+        run: dotnet test AndroidUsbAssistant.sln --configuration Release --no-build
