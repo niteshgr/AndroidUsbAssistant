@@ -3,6 +3,7 @@
     <Project Path="src/AndroidUsbAssistant.App/AndroidUsbAssistant.App.csproj" />
     <Project Path="src/AndroidUsbAssistant.Core/AndroidUsbAssistant.Core.csproj" />
     <Project Path="src/AndroidUsbAssistant.Infrastructure/AndroidUsbAssistant.Infrastructure.csproj" />
+    <Project Path="src/AndroidUsbAssistant.Installer/AndroidUsbAssistant.Installer.wixproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/AndroidUsbAssistant.Tests/AndroidUsbAssistant.Tests.csproj" />

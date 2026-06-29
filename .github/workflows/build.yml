@@ -31,37 +31,15 @@ jobs:
       - name: Build Solution
         run: dotnet build --configuration Release --no-restore
 
+      - name: Build MSI Installer
+        run: dotnet build src/AndroidUsbAssistant.Installer/AndroidUsbAssistant.Installer.wixproj --configuration Release
+
       - name: Run Tests
         run: dotnet test --configuration Release --no-build --verbosity normal
 
-      - name: Publish Application
-        run: |
-          dotnet publish src/AndroidUsbAssistant.App/AndroidUsbAssistant.App.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishReadyToRun=true -o build/publish
-
-      - name: Prepare Installer Package
-        shell: pwsh
-        run: |
-          # Create deployment package directory
-          New-Item -ItemType Directory -Path build/package -Force
-          
-          # Copy executable, installer, and uninstaller
-          Copy-Item -Path build/publish/AndroidUsbAssistant.App.exe -Destination build/package/
-          Copy-Item -Path Install.ps1 -Destination build/package/
-          Copy-Item -Path build/Uninstall.ps1 -Destination build/package/
-          
-          # Compress the directory into a zip archive
-          Compress-Archive -Path build/package/* -DestinationPath build/AndroidUsbAssistant-Installer-win-x64.zip -Force
-
-      - name: Upload Single Executable Artifact
+      - name: Upload Windows Installer MSI
         uses: actions/upload-artifact@v4
         with:
-          name: AndroidUsbAssistant-win-x64-Exe
-          path: build/publish/AndroidUsbAssistant.App.exe
-          if-no-files-found: error
-
-      - name: Upload Full Installer Zip Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: AndroidUsbAssistant-Installer-win-x64
-          path: build/AndroidUsbAssistant-Installer-win-x64.zip
+          name: AndroidUsbAssistantSetup-MSI
+          path: src/AndroidUsbAssistant.Installer/bin/x64/Release/AndroidUsbAssistantSetup.msi
           if-no-files-found: error

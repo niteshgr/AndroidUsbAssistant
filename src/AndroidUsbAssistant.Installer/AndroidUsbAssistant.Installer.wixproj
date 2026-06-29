@@ -1,0 +1,13 @@
+<Project Sdk="WixToolset.Sdk/4.0.6">
+  <PropertyGroup>
+    <OutputType>Package</OutputType>
+    <OutputName>AndroidUsbAssistantSetup</OutputName>
+    <Configuration Condition=" '$(Configuration)' == '' ">Release</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">x64</Platform>
+    <DefineConstants>AppPublishDir=obj\$(Platform)\$(Configuration)\publish\AndroidUsbAssistant.App</DefineConstants>
+    <SuppressValidation>true</SuppressValidation>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AndroidUsbAssistant.App\AndroidUsbAssistant.App.csproj" Publish="true" />
+  </ItemGroup>
+</Project>
