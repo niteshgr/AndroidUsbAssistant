@@ -25,10 +25,10 @@ jobs:
           dotnet-version: 8.0.x
 
       - name: Restore NuGet Packages
-        run: dotnet restore AndroidUsbAssistant.sln
+        run: dotnet restore ../../../AndroidUsbAssistant.sln
 
       - name: Build Solution
-        run: dotnet build AndroidUsbAssistant.sln --configuration Release --no-restore
+        run: dotnet build ../../../AndroidUsbAssistant.sln --configuration Release --no-restore
 
       - name: Run Tests
-        run: dotnet test AndroidUsbAssistant.sln --configuration Release --no-build
+        run: dotnet test ../../../AndroidUsbAssistant.sln --configuration Release --no-build
