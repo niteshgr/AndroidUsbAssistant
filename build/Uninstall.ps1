@@ -15,12 +15,12 @@ Get-Process -Name $AppName -ErrorAction SilentlyContinue | Stop-Process -Force
 
 # 2. Remove Shortcuts
 Write-Host "Removing shortcuts..." -ForegroundColor Cyan
-$DesktopShortcut = Join-Path [Environment]::GetFolderPath("Desktop") "$AppName.lnk"
+$DesktopShortcut = Join-Path ([Environment]::GetFolderPath("Desktop")) "$AppName.lnk"
 if (Test-Path $DesktopShortcut) {
     Remove-Item $DesktopShortcut -Force
 }
 
-$StartMenuFolder = Join-Path [Environment]::GetFolderPath("StartMenu") "Programs\$AppName"
+$StartMenuFolder = Join-Path ([Environment]::GetFolderPath("StartMenu")) "Programs\$AppName"
 if (Test-Path $StartMenuFolder) {
     Remove-Item $StartMenuFolder -Recurse -Force
 }
