@@ -39,4 +39,4 @@ try {
 # 4. Trigger detached directory deletion and exit
 Write-Host "Uninstallation complete. Cleaning up installation directory..." -ForegroundColor Green
 $Command = "Start-Sleep -Seconds 1; Remove-Item -Path '$InstallDir' -Recurse -Force"
-Start-Process powershell -ArgumentList "-NoProfile -WindowStyle Hidden -Command `\"$Command`\""
+Start-Process powershell -ArgumentList @("-NoProfile", "-WindowStyle", "Hidden", "-Command", $Command)
