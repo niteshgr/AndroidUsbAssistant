@@ -27,7 +27,10 @@ For a detailed review of the architecture, see [ARCHITECTURE.md](file:///c:/User
 
 ### Prerequisites
 
-* [.NET SDK 10](https://dotnet.microsoft.com/download)
+* **Android Debug Bridge (ADB)**: Required to interact with connected Android devices and enable USB tethering.
+  * **Quick Setup**: Download the official [Android SDK Platform-Tools for Windows](https://developer.android.com/tools/releases/platform-tools), extract it to a directory on your system (e.g., `C:\platform-tools\`), and configure this path in the **Settings** panel of the application.
+  * For step-by-step instructions, see the [XDA Developers ADB Installation Guide](https://www.xda-developers.com/install-adb-windows-macos-linux/).
+* **.NET 10.0 Runtime**: The packaged MSI Installer compiles as self-contained and runs with no dependencies. If building or running from source code, install the [.NET SDK 10.0](https://dotnet.microsoft.com/download).
 
 ### Build the Application
 

@@ -115,11 +115,27 @@ public class ConfigurationService : IConfigurationService
 
     private static AppConfiguration CloneConfiguration(AppConfiguration source)
     {
+        var clonedActions = new Dictionary<string, List<DeviceActionConfig>>();
+        if (source.DeviceActions != null)
+        {
+            foreach (var kvp in source.DeviceActions)
+            {
+                var actionList = kvp.Value.Select(a => new DeviceActionConfig
+                {
+                    ActionId = a.ActionId,
+                    Enabled = a.Enabled,
+                    Parameters = a.Parameters != null ? new Dictionary<string, string>(a.Parameters) : new Dictionary<string, string>()
+                }).ToList();
+                clonedActions[kvp.Key] = actionList;
+            }
+        }
+
         return new AppConfiguration
         {
             AdbPath = source.AdbPath,
             StartWithWindows = source.StartWithWindows,
-            TrustedDevices = new List<string>(source.TrustedDevices)
+            TrustedDevices = source.TrustedDevices != null ? new List<string>(source.TrustedDevices) : new List<string>(),
+            DeviceActions = clonedActions
         };
     }
 }
