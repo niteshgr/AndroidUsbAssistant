@@ -13,7 +13,7 @@ static class Program
     ///  The main entry point for the application.
     /// </summary>
     [STAThread]
-    static async Task Main(string[] args)
+    static void Main(string[] args)
     {
         // Customize application configuration like DPI and default font
         ApplicationConfiguration.Initialize();
@@ -32,6 +32,7 @@ static class Program
                 // Core / Infrastructure services
                 services.AddSingleton<IConfigurationService, ConfigurationService>();
                 services.AddSingleton<IUsbDetector, WindowsUsbDetector>();
+                services.AddSingleton<IAdbService, AdbService>();
 
                 // Application Context
                 services.AddSingleton<TrayApplicationContext>();
@@ -44,10 +45,10 @@ static class Program
             .Build();
 
         var logger = host.Services.GetRequiredService<ILogger<TrayApplicationContext>>();
-        logger.LogInformation("Starting Android USB Assistant Generic Host.");
+        logger.LogInformation("Starting Android USB Assistant Generic Host (STA thread).");
 
-        // Start host background lifecycle
-        await host.StartAsync();
+        // Start host background lifecycle synchronously to preserve STA state on main thread
+        host.Start();
 
         // Run UI message loop using the registered TrayApplicationContext
         var trayContext = host.Services.GetRequiredService<TrayApplicationContext>();
@@ -55,7 +56,7 @@ static class Program
 
         // Clean up host on exit
         logger.LogInformation("Stopping Android USB Assistant Generic Host.");
-        await host.StopAsync();
+        host.StopAsync().GetAwaiter().GetResult();
         host.Dispose();
     }
-}
+}
