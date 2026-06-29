@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AndroidUsbAssistant.App/AndroidUsbAssistant.App.csproj" />
+    <Project Path="src/AndroidUsbAssistant.Core/AndroidUsbAssistant.Core.csproj" />
+    <Project Path="src/AndroidUsbAssistant.Infrastructure/AndroidUsbAssistant.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AndroidUsbAssistant.Tests/AndroidUsbAssistant.Tests.csproj" />
+  </Folder>
+</Solution>
