@@ -1,34 +1,67 @@
-name: Build
+name: Build, Test, and Package
 
 on:
   push:
     branches:
       - main
+      - develop
       - feature/**
   pull_request:
     branches:
       - main
+      - develop
+  workflow_dispatch:
 
 jobs:
-  build:
-
+  build-and-test:
     runs-on: windows-latest
 
     steps:
-
       - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: '10.0.x'
 
       - name: Restore NuGet Packages
-        run: dotnet restore AndroidUsbAssistant.sln
+        run: dotnet restore
 
       - name: Build Solution
-        run: dotnet build AndroidUsbAssistant.sln --configuration Release --no-restore
+        run: dotnet build --configuration Release --no-restore
 
       - name: Run Tests
-        run: dotnet test AndroidUsbAssistant.sln --configuration Release --no-build
+        run: dotnet test --configuration Release --no-build --verbosity normal
+
+      - name: Publish Application
+        run: |
+          dotnet publish src/AndroidUsbAssistant.App/AndroidUsbAssistant.App.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishReadyToRun=true -o build/publish
+
+      - name: Prepare Installer Package
+        shell: pwsh
+        run: |
+          # Create deployment package directory
+          New-Item -ItemType Directory -Path build/package -Force
+          
+          # Copy executable, installer, and uninstaller
+          Copy-Item -Path build/publish/AndroidUsbAssistant.App.exe -Destination build/package/
+          Copy-Item -Path Install.ps1 -Destination build/package/
+          Copy-Item -Path build/Uninstall.ps1 -Destination build/package/
+          
+          # Compress the directory into a zip archive
+          Compress-Archive -Path build/package/* -DestinationPath build/AndroidUsbAssistant-Installer-win-x64.zip -Force
+
+      - name: Upload Single Executable Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AndroidUsbAssistant-win-x64-Exe
+          path: build/publish/AndroidUsbAssistant.App.exe
+          if-no-files-found: error
+
+      - name: Upload Full Installer Zip Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AndroidUsbAssistant-Installer-win-x64
+          path: build/AndroidUsbAssistant-Installer-win-x64.zip
+          if-no-files-found: error
