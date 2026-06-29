@@ -25,6 +25,7 @@ public class TrayApplicationContext : ApplicationContext
     private readonly Icon _customIcon;
     private readonly HashSet<string> _notifiedDevices = new();
     private readonly HashSet<string> _executedDevices = new();
+    private IntPtr _hIcon = IntPtr.Zero;
 
     private StatusForm? _statusForm;
     private SettingsForm? _settingsForm;
@@ -111,23 +112,33 @@ public class TrayApplicationContext : ApplicationContext
     {
         using var bitmap = new Bitmap(16, 16);
         using var graphics = Graphics.FromImage(bitmap);
+        
+        // Use high-quality rendering for smooth arcs and lines
+        graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
         graphics.Clear(Color.Transparent);
 
-        // Draw modern circular teal background
-        using var backgroundBrush = new SolidBrush(Color.FromArgb(0, 150, 136));
-        graphics.FillEllipse(backgroundBrush, 0, 0, 16, 16);
-
-        // Draw light phone/USB symbolic lines in center
-        using var pen = new Pen(Color.White, 2);
-        graphics.DrawLine(pen, 8, 3, 8, 13);
-        graphics.DrawLine(pen, 5, 8, 11, 8);
-
-        var hIcon = bitmap.GetHicon();
-        var icon = Icon.FromHandle(hIcon);
+        // Draw Phone Outline (White/Light Gray)
+        using var phonePen = new Pen(Color.FromArgb(240, 240, 240), 1.5f);
+        graphics.DrawRectangle(phonePen, 2, 3, 5, 10);
         
-        // Hicon is copied by Icon.FromHandle, but we still need to free the raw pointer to prevent leaks
-        DestroyIcon(hIcon);
-        return icon;
+        // Speaker line
+        using var detailPen = new Pen(Color.FromArgb(180, 180, 180), 1f);
+        graphics.DrawLine(detailPen, 4, 4, 5, 4);
+        
+        // Home button dot
+        using var dotBrush = new SolidBrush(Color.FromArgb(240, 240, 240));
+        graphics.FillEllipse(dotBrush, 4, 11, 1.5f, 1.5f);
+
+        // Draw Hotspot/Internet Waves (Teal Theme Color: #009688)
+        using var wavePen = new Pen(Color.FromArgb(0, 150, 136), 1.5f);
+        
+        // Small Wave
+        graphics.DrawArc(wavePen, 3, 3, 10, 10, -35, 70);
+        // Large Wave
+        graphics.DrawArc(wavePen, 0, 0, 16, 16, -35, 70);
+
+        _hIcon = bitmap.GetHicon();
+        return Icon.FromHandle(_hIcon);
     }
 
     private void ShowStatusForm()
@@ -383,6 +394,12 @@ public class TrayApplicationContext : ApplicationContext
         _notifyIcon.Dispose();
         _customIcon.Dispose();
 
+        if (_hIcon != IntPtr.Zero)
+        {
+            DestroyIcon(_hIcon);
+            _hIcon = IntPtr.Zero;
+        }
+
         _statusForm?.Close();
         _settingsForm?.Close();
         _aboutForm?.Close();
@@ -413,6 +430,13 @@ public class TrayApplicationContext : ApplicationContext
             _notifyIcon.Dispose();
             _customIcon.Dispose();
         }
+
+        if (_hIcon != IntPtr.Zero)
+        {
+            DestroyIcon(_hIcon);
+            _hIcon = IntPtr.Zero;
+        }
+
         base.Dispose(disposing);
     }
 
