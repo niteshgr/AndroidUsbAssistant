@@ -141,9 +141,8 @@ function UpdateUI() {
     }
 }
 
-# Worker Thread for Installation
 $worker = New-Object System.ComponentModel.BackgroundWorker
-$worker.DoWork += {
+$worker.add_DoWork({
     param($sender, $e)
     
     $args = $e.Argument
@@ -222,9 +221,9 @@ $worker.DoWork += {
         $regPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
         Set-ItemProperty -Path $regPath -Name "AndroidUsbAssistant" -Value "`"$exeDest`"" -Force
     }
-}
+})
 
-$worker.RunWorkerCompleted += {
+$worker.add_RunWorkerCompleted({
     param($sender, $e)
     
     if ($e.Error) {
@@ -235,7 +234,7 @@ $worker.RunWorkerCompleted += {
         $script:currentScreen = 4
         UpdateUI
     }
-}
+})
 
 # Control Wire-up
 $btnNext.Add_Click({
