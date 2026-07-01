@@ -1,6 +1,7 @@
 using AndroidUsbAssistant.Core.Interfaces;
 using Microsoft.Extensions.Logging;
 using System.Linq;
+using AndroidUsbAssistant.Core.Models;
 
 namespace AndroidUsbAssistant.Core.Actions;
 
@@ -34,75 +35,112 @@ public class UsbTetherAction : IAutomationAction
     {
         try
         {
-            // Check if AutoRun is set to "never"
-            if (parameters.TryGetValue("AutoRun", out var autoRun) && string.Equals(autoRun, "never", StringComparison.OrdinalIgnoreCase))
-            {
-                _logger.LogInformation("USB tethering auto-run is set to 'never' for device {Serial}. Skipping.", deviceSerial);
-                return;
-            }
-
-            // Check if USB tethering is already active
-            _logger.LogInformation("Checking USB tethering status on device {Serial}.", deviceSerial);
-            if (await _adbService.IsUsbTetheringActiveAsync(deviceSerial))
-            {
-                _logger.LogInformation("USB tethering is already active on device {Serial}. Skipping.", deviceSerial);
-                return;
-            }
-
-            bool shouldTether = false;
+            UsbConnectionMode mode = UsbConnectionMode.ChargeOnly;
+            bool shouldPrompt = true;
             bool remember = false;
 
-            // Check if AutoRun is set to "always"
-            if (parameters.TryGetValue("AutoRun", out var ar) && string.Equals(ar, "always", StringComparison.OrdinalIgnoreCase))
+            if (parameters.TryGetValue("AutoRun", out var autoRun))
             {
-                _logger.LogInformation("Auto-run enabled for device {Serial}. Activating USB tethering automatically.", deviceSerial);
-                shouldTether = true;
+                if (string.Equals(autoRun, "always", StringComparison.OrdinalIgnoreCase) || 
+                    string.Equals(autoRun, "Tether", StringComparison.OrdinalIgnoreCase))
+                {
+                    mode = UsbConnectionMode.Tether;
+                    shouldPrompt = false;
+                }
+                else if (string.Equals(autoRun, "TransferFiles", StringComparison.OrdinalIgnoreCase))
+                {
+                    mode = UsbConnectionMode.TransferFiles;
+                    shouldPrompt = false;
+                }
+                else if (string.Equals(autoRun, "ChargeOnly", StringComparison.OrdinalIgnoreCase))
+                {
+                    mode = UsbConnectionMode.ChargeOnly;
+                    shouldPrompt = false;
+                }
             }
-            else
+
+            if (shouldPrompt)
             {
                 // Prompt user using custom TetherPromptForm via IUserPromptService
                 var promptResult = await _promptService.PromptTetherConfirmAsync(deviceSerial);
-                shouldTether = promptResult.Result;
+                mode = promptResult.Mode;
                 remember = promptResult.Remember;
-            }
-
-            if (!shouldTether)
-            {
-                _logger.LogInformation("User chose not to enable USB tethering on device {Serial}.", deviceSerial);
-                if (remember)
-                {
-                    await SaveAutoRunSettingAsync(deviceSerial, "never");
-                }
-                return;
             }
 
             if (remember)
             {
-                await SaveAutoRunSettingAsync(deviceSerial, "always");
+                await SaveAutoRunSettingAsync(deviceSerial, mode.ToString());
             }
 
-            _logger.LogInformation("Enabling USB tethering on device {Serial}.", deviceSerial);
-            var command = $"-s {deviceSerial} shell svc usb setFunctions rndis";
+            // If we want tethering but it's already active, we can skip
+            if (mode == UsbConnectionMode.Tether)
+            {
+                _logger.LogInformation("Checking USB tethering status on device {Serial}.", deviceSerial);
+                if (await _adbService.IsUsbTetheringActiveAsync(deviceSerial))
+                {
+                    _logger.LogInformation("USB tethering is already active on device {Serial}. Skipping.", deviceSerial);
+                    return;
+                }
+            }
+
+            _logger.LogInformation("Setting USB mode to {Mode} on device {Serial}.", mode, deviceSerial);
+            string functions = mode switch
+            {
+                UsbConnectionMode.Tether => "rndis",
+                UsbConnectionMode.TransferFiles => "mtp",
+                _ => "none"
+            };
+
+            var command = $"-s {deviceSerial} shell svc usb setFunctions {functions}";
             _logger.LogInformation("Executing ADB command: adb {Command}", command);
 
             try
             {
                 var result = await _adbService.ExecuteAdbCommandAsync(command);
-                _logger.LogInformation("USB tethering command completed. ADB Output: {Output}", 
+                _logger.LogInformation("USB mode switch command completed. ADB Output: {Output}", 
                     string.IsNullOrWhiteSpace(result) ? "Success (No Output)" : result.Trim());
 
-                _notificationService.ShowNotification("USB Tethering Enabled", $"Tethering has been successfully enabled on device {deviceSerial}.");
+                string notifyTitle = mode switch
+                {
+                    UsbConnectionMode.Tether => "USB Tethering Enabled",
+                    UsbConnectionMode.TransferFiles => "Transfer Files Mode Enabled",
+                    _ => "Charging Mode Enabled"
+                };
+
+                string notifyText = mode switch
+                {
+                    UsbConnectionMode.Tether => $"Tethering has been successfully enabled on device {deviceSerial}.",
+                    UsbConnectionMode.TransferFiles => $"MTP (Transfer Files) mode enabled on device {deviceSerial}.",
+                    _ => $"Device {deviceSerial} is now set to charging only."
+                };
+
+                _notificationService.ShowNotification(notifyTitle, notifyText);
             }
             catch (Exception ex)
             {
                 // Swapping USB modes causes ADB connection to reset. We treat this expected disconnection as success.
                 _logger.LogInformation("ADB connection state changed during USB mode switch: {Message}", ex.Message);
-                _notificationService.ShowNotification("USB Tethering Enabled", $"Tethering has been successfully enabled on device {deviceSerial}.");
+                
+                string notifyTitle = mode switch
+                {
+                    UsbConnectionMode.Tether => "USB Tethering Enabled",
+                    UsbConnectionMode.TransferFiles => "Transfer Files Mode Enabled",
+                    _ => "Charging Mode Enabled"
+                };
+
+                string notifyText = mode switch
+                {
+                    UsbConnectionMode.Tether => $"Tethering has been successfully enabled on device {deviceSerial}.",
+                    UsbConnectionMode.TransferFiles => $"MTP (Transfer Files) mode enabled on device {deviceSerial}.",
+                    _ => $"Device {deviceSerial} is now set to charging only."
+                };
+
+                _notificationService.ShowNotification(notifyTitle, notifyText);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to execute USB tethering action on device {Serial}.", deviceSerial);
+            _logger.LogError(ex, "Failed to execute USB mode action on device {Serial}.", deviceSerial);
         }
     }
 

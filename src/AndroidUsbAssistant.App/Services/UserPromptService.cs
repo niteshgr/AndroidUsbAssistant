@@ -1,29 +1,30 @@
 using System.Windows.Forms;
 using AndroidUsbAssistant.Core.Interfaces;
+using AndroidUsbAssistant.Core.Models;
 using AndroidUsbAssistant.App.Forms;
 
 namespace AndroidUsbAssistant.App.Services;
 
 public class UserPromptService : IUserPromptService
 {
-    public Task<(bool Result, bool Remember)> PromptTetherConfirmAsync(string deviceSerial)
+    public Task<(UsbConnectionMode Mode, bool Remember)> PromptTetherConfirmAsync(string deviceSerial)
     {
-        var tcs = new TaskCompletionSource<(bool, bool)>();
+        var tcs = new TaskCompletionSource<(UsbConnectionMode, bool)>();
 
         if (SynchronizationContext.Current != null)
         {
             SynchronizationContext.Current.Post(_ =>
             {
                 using var form = new TetherPromptForm(deviceSerial);
-                var result = form.ShowDialog();
-                tcs.SetResult((result == DialogResult.Yes, form.RememberChoice));
+                form.ShowDialog();
+                tcs.SetResult((form.SelectedMode, form.RememberChoice));
             }, null);
         }
         else
         {
             using var form = new TetherPromptForm(deviceSerial);
-            var result = form.ShowDialog();
-            tcs.SetResult((result == DialogResult.Yes, form.RememberChoice));
+            form.ShowDialog();
+            tcs.SetResult((form.SelectedMode, form.RememberChoice));
         }
 
         return tcs.Task;
