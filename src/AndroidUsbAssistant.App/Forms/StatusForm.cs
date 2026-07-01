@@ -2,6 +2,7 @@ using System.Windows.Forms;
 using System.Drawing;
 using AndroidUsbAssistant.Core.Interfaces;
 using AndroidUsbAssistant.Core.Models;
+using AndroidUsbAssistant.App.Services;
 
 namespace AndroidUsbAssistant.App.Forms;
 
@@ -10,6 +11,7 @@ public class StatusForm : Form
     private readonly IConfigurationService _configService;
     private readonly IAdbService _adbService;
     private readonly IUsbDetector _usbDetector;
+    private readonly DeviceDisconnectTracker _disconnectTracker;
 
     private Label? _lblUsbDetectionValue;
     private Label? _lblAdbValue;
@@ -23,11 +25,13 @@ public class StatusForm : Form
     public StatusForm(
         IConfigurationService configService,
         IAdbService adbService,
-        IUsbDetector usbDetector)
+        IUsbDetector usbDetector,
+        DeviceDisconnectTracker disconnectTracker)
     {
         _configService = configService;
         _adbService = adbService;
         _usbDetector = usbDetector;
+        _disconnectTracker = disconnectTracker;
 
         InitializeComponent();
 
@@ -174,51 +178,6 @@ public class StatusForm : Form
             DisplayMember = "DisplayName"
         };
 
-        // Context Menu for ListBox
-        var deviceContextMenu = new ContextMenuStrip
-        {
-            BackColor = Color.FromArgb(30, 30, 30),
-            ForeColor = Color.FromArgb(230, 230, 230),
-            ShowImageMargin = false
-        };
-        deviceContextMenu.Renderer = new TrayApplicationContext.DarkMenuRenderer();
-        deviceContextMenu.Opening += (s, e) =>
-        {
-            deviceContextMenu.Items.Clear();
-            if (_lstDevices.SelectedItem is AndroidDevice device && device.IsAuthorized)
-            {
-                var connectItem = new ToolStripMenuItem("Connect");
-                var disconnectItem = new ToolStripMenuItem("Disconnect");
-
-                bool isActive = _lblDeviceConnectionStatus?.Text == "Active";
-
-                connectItem.Enabled = !isActive;
-                connectItem.Click += async (sender, args) => await SetTetheringForDeviceAsync(device.SerialNumber, true);
-
-                disconnectItem.Enabled = isActive;
-                disconnectItem.Click += async (sender, args) => await SetTetheringForDeviceAsync(device.SerialNumber, false);
-
-                deviceContextMenu.Items.Add(connectItem);
-                deviceContextMenu.Items.Add(disconnectItem);
-            }
-            else
-            {
-                e.Cancel = true;
-            }
-        };
-
-        _lstDevices.ContextMenuStrip = deviceContextMenu;
-        _lstDevices.MouseDown += (s, e) =>
-        {
-            if (e.Button == MouseButtons.Right)
-            {
-                int index = _lstDevices.IndexFromPoint(e.Location);
-                if (index >= 0 && index < _lstDevices.Items.Count)
-                {
-                    _lstDevices.SelectedIndex = index;
-                }
-            }
-        };
         _lstDevices.SelectedIndexChanged += async (s, e) => await UpdateSelectedDeviceStatusAsync();
 
         // Separation Line
@@ -467,26 +426,12 @@ public class StatusForm : Form
             var isActive = await _adbService.IsUsbTetheringActiveAsync(device.SerialNumber);
             bool targetState = !isActive;
 
-            var success = await _adbService.SetUsbTetheringAsync(device.SerialNumber, targetState);
-            if (success)
+            if (!targetState)
             {
-                await Task.Delay(1000);
+                _disconnectTracker.RecordManualDisconnect(device.SerialNumber);
             }
-        }
-        finally
-        {
-            await RefreshStatusAsync();
-        }
-    }
 
-    private async Task SetTetheringForDeviceAsync(string serial, bool enable)
-    {
-        if (_btnConnectDisconnect != null) _btnConnectDisconnect.Enabled = false;
-        if (_btnRefresh != null) _btnRefresh.Enabled = false;
-
-        try
-        {
-            var success = await _adbService.SetUsbTetheringAsync(serial, enable);
+            var success = await _adbService.SetUsbTetheringAsync(device.SerialNumber, targetState);
             if (success)
             {
                 await Task.Delay(1000);

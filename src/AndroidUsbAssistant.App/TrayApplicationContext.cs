@@ -23,6 +23,7 @@ public class TrayApplicationContext : ApplicationContext
     private readonly IConfigurationService _configService;
     private readonly IAdbService _adbService;
     private readonly IActionEngine _actionEngine;
+    private readonly DeviceDisconnectTracker _disconnectTracker;
     private readonly Icon _customIcon;
     private readonly HashSet<string> _notifiedDevices = new();
     private readonly HashSet<string> _executedDevices = new();
@@ -43,7 +44,8 @@ public class TrayApplicationContext : ApplicationContext
         IUsbDetector usbDetector,
         IConfigurationService configService,
         IAdbService adbService,
-        IActionEngine actionEngine)
+        IActionEngine actionEngine,
+        DeviceDisconnectTracker disconnectTracker)
     {
         _logger = logger;
         _lifetime = lifetime;
@@ -52,6 +54,7 @@ public class TrayApplicationContext : ApplicationContext
         _configService = configService;
         _adbService = adbService;
         _actionEngine = actionEngine;
+        _disconnectTracker = disconnectTracker;
 
         _logger.LogInformation("Initializing TrayApplicationContext.");
 
@@ -150,22 +153,11 @@ public class TrayApplicationContext : ApplicationContext
                 int insertIndex = 2;
                 foreach (var device in devices)
                 {
-                    var deviceMenu = new ToolStripMenuItem(device.DisplayName);
-                    
-                    var connectItem = new ToolStripMenuItem("Connect");
-                    var disconnectItem = new ToolStripMenuItem("Disconnect");
-
                     var isTetherActive = device.IsAuthorized && await _adbService.IsUsbTetheringActiveAsync(device.SerialNumber);
-                    connectItem.Enabled = device.IsAuthorized && !isTetherActive;
-                    disconnectItem.Enabled = device.IsAuthorized && isTetherActive;
-
-                    connectItem.Click += async (s, e) => await SetTetheringStateAsync(device.SerialNumber, true);
-                    disconnectItem.Click += async (s, e) => await SetTetheringStateAsync(device.SerialNumber, false);
-
-                    deviceMenu.DropDownItems.Add(connectItem);
-                    deviceMenu.DropDownItems.Add(disconnectItem);
-
-                    menu.Items.Insert(insertIndex++, deviceMenu);
+                    var statusText = isTetherActive ? "Active" : (device.IsAuthorized ? "Inactive" : device.State);
+                    var deviceItem = new ToolStripMenuItem($"{device.DisplayName} ({statusText})") { Enabled = false };
+                    
+                    menu.Items.Insert(insertIndex++, deviceItem);
                 }
             }
         }
@@ -180,50 +172,6 @@ public class TrayApplicationContext : ApplicationContext
                 }
             }
             catch { }
-        }
-    }
-
-    private async Task SetTetheringStateAsync(string serial, bool enable)
-    {
-        try
-        {
-            _logger.LogInformation("Tray Context: Setting tethering to {Enable} for device {Serial}", enable, serial);
-            var success = await _adbService.SetUsbTetheringAsync(serial, enable);
-            if (success)
-            {
-                ShowTrayNotification(
-                    enable ? "USB Tethering Enabled" : "USB Tethering Disabled",
-                    enable ? $"Tethering has been enabled on device {serial}." : $"Tethering has been disabled on device {serial}.",
-                    ToolTipIcon.Info);
-
-                // Update tray icon text/status
-                var connectedDevices = await _adbService.GetConnectedDevicesAsync();
-                await UpdateTrayTooltipAsync(connectedDevices);
-
-                // If status form is open and visible, refresh it
-                if (_statusForm != null && !_statusForm.IsDisposed)
-                {
-                    if (_statusForm.InvokeRequired)
-                    {
-                        _statusForm.BeginInvoke(new Action(async () => await _statusForm.RefreshStatusAsync()));
-                    }
-                    else
-                    {
-                        _ = _statusForm.RefreshStatusAsync();
-                    }
-                }
-            }
-            else
-            {
-                ShowTrayNotification(
-                    "Action Failed",
-                    $"Failed to {(enable ? "enable" : "disable")} tethering on device {serial}.",
-                    ToolTipIcon.Error);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to set tethering state for device {Serial}", serial);
         }
     }
 
@@ -386,6 +334,16 @@ public class TrayApplicationContext : ApplicationContext
                 }
 
                 var serial = device.SerialNumber;
+
+                if (_disconnectTracker.IsRecentManualDisconnect(serial))
+                {
+                    _logger.LogInformation("Device {Serial} was recently manually disconnected. Skipping auto-connection actions.", serial);
+                    lock (_executedDevices)
+                    {
+                        _executedDevices.Add(serial);
+                    }
+                    continue;
+                }
 
                 if (config.TrustedDevices.Contains(serial))
                 {
