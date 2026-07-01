@@ -23,11 +23,11 @@ public class TrayApplicationContext : ApplicationContext
     private readonly IConfigurationService _configService;
     private readonly IAdbService _adbService;
     private readonly IActionEngine _actionEngine;
-    private readonly DeviceDisconnectTracker _disconnectTracker;
     private readonly Icon _customIcon;
     private readonly HashSet<string> _notifiedDevices = new();
     private readonly HashSet<string> _executedDevices = new();
     private readonly Dictionary<string, string> _connectedDevicesCache = new();
+    private readonly Dictionary<string, DateTime> _lastSeenTimes = new();
     private IntPtr _hIcon = IntPtr.Zero;
 
     private StatusForm? _statusForm;
@@ -44,8 +44,7 @@ public class TrayApplicationContext : ApplicationContext
         IUsbDetector usbDetector,
         IConfigurationService configService,
         IAdbService adbService,
-        IActionEngine actionEngine,
-        DeviceDisconnectTracker disconnectTracker)
+        IActionEngine actionEngine)
     {
         _logger = logger;
         _lifetime = lifetime;
@@ -54,7 +53,6 @@ public class TrayApplicationContext : ApplicationContext
         _configService = configService;
         _adbService = adbService;
         _actionEngine = actionEngine;
-        _disconnectTracker = disconnectTracker;
 
         _logger.LogInformation("Initializing TrayApplicationContext.");
 
@@ -335,14 +333,29 @@ public class TrayApplicationContext : ApplicationContext
 
                 var serial = device.SerialNumber;
 
-                if (_disconnectTracker.IsRecentManualDisconnect(serial))
+                bool isFreshConnection = true;
+                if (_lastSeenTimes.TryGetValue(serial, out var lastSeen))
                 {
-                    _logger.LogInformation("Device {Serial} was recently manually disconnected. Skipping auto-connection actions.", serial);
+                    if (DateTime.UtcNow - lastSeen <= TimeSpan.FromSeconds(8))
+                    {
+                        isFreshConnection = false;
+                    }
+                }
+
+                if (!isFreshConnection)
+                {
+                    _logger.LogInformation("Device {Serial} reconnected within 8 seconds. Treating as USB mode-switch reset. Skipping automatic actions.", serial);
                     lock (_executedDevices)
                     {
                         _executedDevices.Add(serial);
                     }
                     continue;
+                }
+
+                // If it is a fresh connection, we clear its executed state so it can run actions
+                lock (_executedDevices)
+                {
+                    _executedDevices.Remove(serial);
                 }
 
                 if (config.TrustedDevices.Contains(serial))
@@ -383,6 +396,12 @@ public class TrayApplicationContext : ApplicationContext
                         ShowTrustPrompt(device);
                     }
                 }
+            }
+
+            // Update last seen times for connected devices
+            foreach (var device in connectedDevices)
+            {
+                _lastSeenTimes[device.SerialNumber] = DateTime.UtcNow;
             }
 
             await UpdateTrayTooltipAsync(connectedDevices);

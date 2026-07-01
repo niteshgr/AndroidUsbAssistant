@@ -2,7 +2,6 @@ using System.Windows.Forms;
 using System.Drawing;
 using AndroidUsbAssistant.Core.Interfaces;
 using AndroidUsbAssistant.Core.Models;
-using AndroidUsbAssistant.App.Services;
 
 namespace AndroidUsbAssistant.App.Forms;
 
@@ -11,7 +10,6 @@ public class StatusForm : Form
     private readonly IConfigurationService _configService;
     private readonly IAdbService _adbService;
     private readonly IUsbDetector _usbDetector;
-    private readonly DeviceDisconnectTracker _disconnectTracker;
 
     private Label? _lblUsbDetectionValue;
     private Label? _lblAdbValue;
@@ -25,13 +23,11 @@ public class StatusForm : Form
     public StatusForm(
         IConfigurationService configService,
         IAdbService adbService,
-        IUsbDetector usbDetector,
-        DeviceDisconnectTracker disconnectTracker)
+        IUsbDetector usbDetector)
     {
         _configService = configService;
         _adbService = adbService;
         _usbDetector = usbDetector;
-        _disconnectTracker = disconnectTracker;
 
         InitializeComponent();
 
@@ -425,11 +421,6 @@ public class StatusForm : Form
         {
             var isActive = await _adbService.IsUsbTetheringActiveAsync(device.SerialNumber);
             bool targetState = !isActive;
-
-            if (!targetState)
-            {
-                _disconnectTracker.RecordManualDisconnect(device.SerialNumber);
-            }
 
             var success = await _adbService.SetUsbTetheringAsync(device.SerialNumber, targetState);
             if (success)

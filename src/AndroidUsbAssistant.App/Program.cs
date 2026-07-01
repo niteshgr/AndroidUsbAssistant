@@ -41,7 +41,6 @@ static class Program
                 services.AddSingleton<IActionEngine, ActionEngine>();
                 services.AddSingleton<IAutomationAction, MockAction>();
                 services.AddSingleton<IAutomationAction, UsbTetherAction>();
-                services.AddSingleton<DeviceDisconnectTracker>();
 
                 // Application Context
                 services.AddSingleton<TrayApplicationContext>();
