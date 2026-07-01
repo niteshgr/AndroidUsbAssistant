@@ -17,6 +17,8 @@ public class StatusForm : Form
     private Label? _lblAdbPathValue;
     private ListBox? _lstDevices;
     private Button? _btnRefresh;
+    private Button? _btnConnectDisconnect;
+    private Label? _lblDeviceConnectionStatus;
 
     public StatusForm(
         IConfigurationService configService,
@@ -168,8 +170,56 @@ public class StatusForm : Form
             Size = new Size(440, 120),
             BackColor = Color.FromArgb(37, 37, 38),
             ForeColor = Color.FromArgb(240, 240, 240),
-            BorderStyle = BorderStyle.FixedSingle
+            BorderStyle = BorderStyle.FixedSingle,
+            DisplayMember = "DisplayName"
         };
+
+        // Context Menu for ListBox
+        var deviceContextMenu = new ContextMenuStrip
+        {
+            BackColor = Color.FromArgb(30, 30, 30),
+            ForeColor = Color.FromArgb(230, 230, 230),
+            ShowImageMargin = false
+        };
+        deviceContextMenu.Renderer = new TrayApplicationContext.DarkMenuRenderer();
+        deviceContextMenu.Opening += (s, e) =>
+        {
+            deviceContextMenu.Items.Clear();
+            if (_lstDevices.SelectedItem is AndroidDevice device && device.IsAuthorized)
+            {
+                var connectItem = new ToolStripMenuItem("Connect");
+                var disconnectItem = new ToolStripMenuItem("Disconnect");
+
+                bool isActive = _lblDeviceConnectionStatus?.Text == "Active";
+
+                connectItem.Enabled = !isActive;
+                connectItem.Click += async (sender, args) => await SetTetheringForDeviceAsync(device.SerialNumber, true);
+
+                disconnectItem.Enabled = isActive;
+                disconnectItem.Click += async (sender, args) => await SetTetheringForDeviceAsync(device.SerialNumber, false);
+
+                deviceContextMenu.Items.Add(connectItem);
+                deviceContextMenu.Items.Add(disconnectItem);
+            }
+            else
+            {
+                e.Cancel = true;
+            }
+        };
+
+        _lstDevices.ContextMenuStrip = deviceContextMenu;
+        _lstDevices.MouseDown += (s, e) =>
+        {
+            if (e.Button == MouseButtons.Right)
+            {
+                int index = _lstDevices.IndexFromPoint(e.Location);
+                if (index >= 0 && index < _lstDevices.Items.Count)
+                {
+                    _lstDevices.SelectedIndex = index;
+                }
+            }
+        };
+        _lstDevices.SelectedIndexChanged += async (s, e) => await UpdateSelectedDeviceStatusAsync();
 
         // Separation Line
         var line = new Panel
@@ -178,6 +228,30 @@ public class StatusForm : Form
             Location = new Point(20, 400),
             Size = new Size(440, 1)
         };
+
+        // Selected Device Status Label
+        _lblDeviceConnectionStatus = new Label
+        {
+            Text = "",
+            Font = new Font("Segoe UI", 9.5f, FontStyle.Regular),
+            Location = new Point(20, 413),
+            Size = new Size(110, 32),
+            TextAlign = ContentAlignment.MiddleLeft
+        };
+
+        // Connect/Disconnect Button
+        _btnConnectDisconnect = new Button
+        {
+            Text = "Connect",
+            Size = new Size(100, 32),
+            Location = new Point(140, 413),
+            FlatStyle = FlatStyle.Flat,
+            BackColor = Color.FromArgb(45, 45, 48),
+            ForeColor = Color.White,
+            Enabled = false
+        };
+        _btnConnectDisconnect.FlatAppearance.BorderSize = 0;
+        _btnConnectDisconnect.Click += async (s, e) => await ToggleSelectedDeviceTetheringAsync();
 
         // Refresh Button
         _btnRefresh = new Button
@@ -212,6 +286,8 @@ public class StatusForm : Form
         Controls.Add(lblDevicesTitle);
         Controls.Add(_lstDevices);
         Controls.Add(line);
+        Controls.Add(_lblDeviceConnectionStatus);
+        Controls.Add(_btnConnectDisconnect);
         Controls.Add(_btnRefresh);
         Controls.Add(btnClose);
     }
@@ -228,7 +304,7 @@ public class StatusForm : Form
         }
     }
 
-    private async Task RefreshStatusAsync()
+    public async Task RefreshStatusAsync()
     {
         if (_btnRefresh != null) _btnRefresh.Enabled = false;
 
@@ -299,6 +375,7 @@ public class StatusForm : Form
                 {
                     _lstDevices.Items.Add("(Cannot list devices: ADB not found)");
                     _lstDevices.Enabled = false;
+                    await UpdateSelectedDeviceStatusAsync();
                 }
                 else
                 {
@@ -307,13 +384,19 @@ public class StatusForm : Form
                     {
                         _lstDevices.Items.Add("(No Android devices detected)");
                         _lstDevices.Enabled = false;
+                        await UpdateSelectedDeviceStatusAsync();
                     }
                     else
                     {
                         _lstDevices.Enabled = true;
                         foreach (var device in devices)
                         {
-                            _lstDevices.Items.Add(device.DisplayName);
+                            _lstDevices.Items.Add(device);
+                        }
+
+                        if (_lstDevices.Items.Count > 0)
+                        {
+                            _lstDevices.SelectedIndex = 0;
                         }
                     }
                 }
@@ -331,6 +414,87 @@ public class StatusForm : Form
         finally
         {
             if (_btnRefresh != null) _btnRefresh.Enabled = true;
+        }
+    }
+
+    private async Task UpdateSelectedDeviceStatusAsync()
+    {
+        if (_lstDevices == null || _lblDeviceConnectionStatus == null || _btnConnectDisconnect == null)
+            return;
+
+        if (_lstDevices.SelectedItem is AndroidDevice device && device.IsAuthorized)
+        {
+            _lblDeviceConnectionStatus.Text = "Checking...";
+            _lblDeviceConnectionStatus.ForeColor = Color.FromArgb(255, 193, 7); // Yellow
+            _btnConnectDisconnect.Enabled = false;
+
+            try
+            {
+                var isActive = await _adbService.IsUsbTetheringActiveAsync(device.SerialNumber);
+                _lblDeviceConnectionStatus.Text = isActive ? "Active" : "Inactive";
+                _lblDeviceConnectionStatus.ForeColor = isActive ? Color.FromArgb(0, 150, 136) : Color.FromArgb(150, 150, 150);
+                
+                _btnConnectDisconnect.Text = isActive ? "Disconnect" : "Connect";
+                _btnConnectDisconnect.BackColor = isActive ? Color.FromArgb(220, 53, 69) : Color.FromArgb(0, 150, 136); // Red for disconnect, Teal for connect
+                _btnConnectDisconnect.Enabled = true;
+            }
+            catch (Exception)
+            {
+                _lblDeviceConnectionStatus.Text = "Error";
+                _lblDeviceConnectionStatus.ForeColor = Color.FromArgb(220, 53, 69); // Red
+                _btnConnectDisconnect.Enabled = false;
+            }
+        }
+        else
+        {
+            _lblDeviceConnectionStatus.Text = "";
+            _btnConnectDisconnect.Text = "Connect";
+            _btnConnectDisconnect.BackColor = Color.FromArgb(45, 45, 48); // Gray
+            _btnConnectDisconnect.Enabled = false;
+        }
+    }
+
+    private async Task ToggleSelectedDeviceTetheringAsync()
+    {
+        if (_lstDevices?.SelectedItem is not AndroidDevice device || !device.IsAuthorized)
+            return;
+
+        if (_btnConnectDisconnect != null) _btnConnectDisconnect.Enabled = false;
+        if (_btnRefresh != null) _btnRefresh.Enabled = false;
+
+        try
+        {
+            var isActive = await _adbService.IsUsbTetheringActiveAsync(device.SerialNumber);
+            bool targetState = !isActive;
+
+            var success = await _adbService.SetUsbTetheringAsync(device.SerialNumber, targetState);
+            if (success)
+            {
+                await Task.Delay(1000);
+            }
+        }
+        finally
+        {
+            await RefreshStatusAsync();
+        }
+    }
+
+    private async Task SetTetheringForDeviceAsync(string serial, bool enable)
+    {
+        if (_btnConnectDisconnect != null) _btnConnectDisconnect.Enabled = false;
+        if (_btnRefresh != null) _btnRefresh.Enabled = false;
+
+        try
+        {
+            var success = await _adbService.SetUsbTetheringAsync(serial, enable);
+            if (success)
+            {
+                await Task.Delay(1000);
+            }
+        }
+        finally
+        {
+            await RefreshStatusAsync();
         }
     }
 }

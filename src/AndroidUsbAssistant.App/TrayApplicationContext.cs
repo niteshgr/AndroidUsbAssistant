@@ -101,17 +101,130 @@ public class TrayApplicationContext : ApplicationContext
         var exitItem = new ToolStripMenuItem("Exit");
         exitItem.Click += (s, e) => ExitApplication();
 
+        menu.Opening += (s, e) => PopulateDynamicTrayMenu(menu, statusItem, settingsItem, aboutItem, exitItem);
+
+        // Styling for separation and colors
+        menu.Renderer = new DarkMenuRenderer();
+
+        return menu;
+    }
+
+    private async void PopulateDynamicTrayMenu(
+        ContextMenuStrip menu,
+        ToolStripMenuItem statusItem,
+        ToolStripMenuItem settingsItem,
+        ToolStripMenuItem aboutItem,
+        ToolStripMenuItem exitItem)
+    {
+        menu.Items.Clear();
         menu.Items.Add(statusItem);
+        menu.Items.Add(new ToolStripSeparator());
+
+        var loadingItem = new ToolStripMenuItem("Loading devices...") { Enabled = false };
+        menu.Items.Add(loadingItem);
+
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(settingsItem);
         menu.Items.Add(aboutItem);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(exitItem);
 
-        // Styling for separation and colors
-        menu.Renderer = new DarkMenuRenderer();
+        try
+        {
+            if (!await _adbService.IsAdbAvailableAsync())
+            {
+                loadingItem.Text = "ADB Offline";
+                return;
+            }
 
-        return menu;
+            var devices = await _adbService.GetConnectedDevicesAsync();
+            menu.Items.Remove(loadingItem);
+
+            if (devices.Count == 0)
+            {
+                var noDevicesItem = new ToolStripMenuItem("No devices connected") { Enabled = false };
+                menu.Items.Insert(2, noDevicesItem);
+            }
+            else
+            {
+                int insertIndex = 2;
+                foreach (var device in devices)
+                {
+                    var deviceMenu = new ToolStripMenuItem(device.DisplayName);
+                    
+                    var connectItem = new ToolStripMenuItem("Connect");
+                    var disconnectItem = new ToolStripMenuItem("Disconnect");
+
+                    var isTetherActive = device.IsAuthorized && await _adbService.IsUsbTetheringActiveAsync(device.SerialNumber);
+                    connectItem.Enabled = device.IsAuthorized && !isTetherActive;
+                    disconnectItem.Enabled = device.IsAuthorized && isTetherActive;
+
+                    connectItem.Click += async (s, e) => await SetTetheringStateAsync(device.SerialNumber, true);
+                    disconnectItem.Click += async (s, e) => await SetTetheringStateAsync(device.SerialNumber, false);
+
+                    deviceMenu.DropDownItems.Add(connectItem);
+                    deviceMenu.DropDownItems.Add(disconnectItem);
+
+                    menu.Items.Insert(insertIndex++, deviceMenu);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error populating dynamic tray menu.");
+            try
+            {
+                if (menu.Items.Contains(loadingItem))
+                {
+                    loadingItem.Text = "Error reading devices";
+                }
+            }
+            catch { }
+        }
+    }
+
+    private async Task SetTetheringStateAsync(string serial, bool enable)
+    {
+        try
+        {
+            _logger.LogInformation("Tray Context: Setting tethering to {Enable} for device {Serial}", enable, serial);
+            var success = await _adbService.SetUsbTetheringAsync(serial, enable);
+            if (success)
+            {
+                ShowTrayNotification(
+                    enable ? "USB Tethering Enabled" : "USB Tethering Disabled",
+                    enable ? $"Tethering has been enabled on device {serial}." : $"Tethering has been disabled on device {serial}.",
+                    ToolTipIcon.Info);
+
+                // Update tray icon text/status
+                var connectedDevices = await _adbService.GetConnectedDevicesAsync();
+                await UpdateTrayTooltipAsync(connectedDevices);
+
+                // If status form is open and visible, refresh it
+                if (_statusForm != null && !_statusForm.IsDisposed)
+                {
+                    if (_statusForm.InvokeRequired)
+                    {
+                        _statusForm.BeginInvoke(new Action(async () => await _statusForm.RefreshStatusAsync()));
+                    }
+                    else
+                    {
+                        _ = _statusForm.RefreshStatusAsync();
+                    }
+                }
+            }
+            else
+            {
+                ShowTrayNotification(
+                    "Action Failed",
+                    $"Failed to {(enable ? "enable" : "disable")} tethering on device {serial}.",
+                    ToolTipIcon.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to set tethering state for device {Serial}", serial);
+        }
     }
 
     private Icon CreateCustomIcon()
@@ -502,7 +615,7 @@ public class TrayApplicationContext : ApplicationContext
     }
 
     // Custom toolstrip menu renderer to support custom dark themes cleanly
-    private class DarkMenuRenderer : ToolStripProfessionalRenderer
+    public class DarkMenuRenderer : ToolStripProfessionalRenderer
     {
         public DarkMenuRenderer() : base(new DarkColorTable()) { }
 
@@ -520,7 +633,7 @@ public class TrayApplicationContext : ApplicationContext
         }
     }
 
-    private class DarkColorTable : ProfessionalColorTable
+    public class DarkColorTable : ProfessionalColorTable
     {
         public override Color ToolStripDropDownBackground => Color.FromArgb(30, 30, 30);
         public override Color MenuBorder => Color.FromArgb(45, 45, 45);

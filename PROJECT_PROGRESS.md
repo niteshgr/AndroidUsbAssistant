@@ -15,6 +15,7 @@ This file tracks the completion status of the project milestones.
 | **Milestone 7** | **Settings** | **Completed** | Complete settings management UI. |
 | **Milestone 8** | **Notifications** | **Completed** | OS system notifications for connection events. |
 | **Milestone 9** | **Installer** | **Completed** | Packaging the application for production deployment. |
+| **Milestone 10** | **Manual Connect/Disconnect** | **Completed** | Add Connect/Disconnect button/status label to Status Dashboard and dynamic options to System Tray context menu. |
 
 ---
 
@@ -75,3 +76,8 @@ This file tracks the completion status of the project milestones.
 * **Graphical WPF Setup Wizard**: Developed a dark-themed GUI installer (`Install.ps1`) using PowerShell and .NET WPF. Offers custom options for desktop/start menu shortcuts, custom installation directories, and system auto-boot registration.
 * **Registry & Link Management**: Wired the setup wizard to write to Windows Startup registry runs (`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`) and program shortcuts.
 * **Clean Uninstaller**: Created a robust `Uninstall.ps1` template that runs a detached background process to cleanly delete files, registry entries, and shortcuts.
+
+### Milestone 10: Manual Connect/Disconnect
+* **Dynamic Tray Menu**: Reconstructed the system tray context menu to fetch connected devices dynamically and provide submenus for connecting/disconnecting each device.
+* **Status Dashboard Controls**: Expanded the Status Dashboard UI with a real-time status label and a dynamic Connect/Disconnect button that switches modes and adapts to the selected device's active USB functions.
+* **Device List Context Menu**: Integrated a right-click context menu directly into the Status Dashboard device list box, enabling users to manage USB tethering connections with a right-click.
