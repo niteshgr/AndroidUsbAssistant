@@ -27,6 +27,7 @@ public class TrayApplicationContext : ApplicationContext
     private readonly HashSet<string> _notifiedDevices = new();
     private readonly HashSet<string> _executedDevices = new();
     private readonly Dictionary<string, string> _connectedDevicesCache = new();
+    private readonly Dictionary<string, DateTime> _lastSeenTimes = new();
     private IntPtr _hIcon = IntPtr.Zero;
 
     private StatusForm? _statusForm;
@@ -101,17 +102,75 @@ public class TrayApplicationContext : ApplicationContext
         var exitItem = new ToolStripMenuItem("Exit");
         exitItem.Click += (s, e) => ExitApplication();
 
+        menu.Opening += (s, e) => PopulateDynamicTrayMenu(menu, statusItem, settingsItem, aboutItem, exitItem);
+
+        // Styling for separation and colors
+        menu.Renderer = new DarkMenuRenderer();
+
+        return menu;
+    }
+
+    private async void PopulateDynamicTrayMenu(
+        ContextMenuStrip menu,
+        ToolStripMenuItem statusItem,
+        ToolStripMenuItem settingsItem,
+        ToolStripMenuItem aboutItem,
+        ToolStripMenuItem exitItem)
+    {
+        menu.Items.Clear();
         menu.Items.Add(statusItem);
+        menu.Items.Add(new ToolStripSeparator());
+
+        var loadingItem = new ToolStripMenuItem("Loading devices...") { Enabled = false };
+        menu.Items.Add(loadingItem);
+
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(settingsItem);
         menu.Items.Add(aboutItem);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(exitItem);
 
-        // Styling for separation and colors
-        menu.Renderer = new DarkMenuRenderer();
+        try
+        {
+            if (!await _adbService.IsAdbAvailableAsync())
+            {
+                loadingItem.Text = "ADB Offline";
+                return;
+            }
 
-        return menu;
+            var devices = await _adbService.GetConnectedDevicesAsync();
+            menu.Items.Remove(loadingItem);
+
+            if (devices.Count == 0)
+            {
+                var noDevicesItem = new ToolStripMenuItem("No devices connected") { Enabled = false };
+                menu.Items.Insert(2, noDevicesItem);
+            }
+            else
+            {
+                int insertIndex = 2;
+                foreach (var device in devices)
+                {
+                    var isTetherActive = device.IsAuthorized && await _adbService.IsUsbTetheringActiveAsync(device.SerialNumber);
+                    var statusText = isTetherActive ? "Active" : (device.IsAuthorized ? "Inactive" : device.State);
+                    var deviceItem = new ToolStripMenuItem($"{device.DisplayName} ({statusText})") { Enabled = false };
+                    
+                    menu.Items.Insert(insertIndex++, deviceItem);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error populating dynamic tray menu.");
+            try
+            {
+                if (menu.Items.Contains(loadingItem))
+                {
+                    loadingItem.Text = "Error reading devices";
+                }
+            }
+            catch { }
+        }
     }
 
     private Icon CreateCustomIcon()
@@ -274,6 +333,31 @@ public class TrayApplicationContext : ApplicationContext
 
                 var serial = device.SerialNumber;
 
+                bool isFreshConnection = true;
+                if (_lastSeenTimes.TryGetValue(serial, out var lastSeen))
+                {
+                    if (DateTime.UtcNow - lastSeen <= TimeSpan.FromSeconds(8))
+                    {
+                        isFreshConnection = false;
+                    }
+                }
+
+                if (!isFreshConnection)
+                {
+                    _logger.LogInformation("Device {Serial} reconnected within 8 seconds. Treating as USB mode-switch reset. Skipping automatic actions.", serial);
+                    lock (_executedDevices)
+                    {
+                        _executedDevices.Add(serial);
+                    }
+                    continue;
+                }
+
+                // If it is a fresh connection, we clear its executed state so it can run actions
+                lock (_executedDevices)
+                {
+                    _executedDevices.Remove(serial);
+                }
+
                 if (config.TrustedDevices.Contains(serial))
                 {
                     bool alreadyExecuted;
@@ -312,6 +396,12 @@ public class TrayApplicationContext : ApplicationContext
                         ShowTrustPrompt(device);
                     }
                 }
+            }
+
+            // Update last seen times for connected devices
+            foreach (var device in connectedDevices)
+            {
+                _lastSeenTimes[device.SerialNumber] = DateTime.UtcNow;
             }
 
             await UpdateTrayTooltipAsync(connectedDevices);
@@ -502,7 +592,7 @@ public class TrayApplicationContext : ApplicationContext
     }
 
     // Custom toolstrip menu renderer to support custom dark themes cleanly
-    private class DarkMenuRenderer : ToolStripProfessionalRenderer
+    public class DarkMenuRenderer : ToolStripProfessionalRenderer
     {
         public DarkMenuRenderer() : base(new DarkColorTable()) { }
 
@@ -520,7 +610,7 @@ public class TrayApplicationContext : ApplicationContext
         }
     }
 
-    private class DarkColorTable : ProfessionalColorTable
+    public class DarkColorTable : ProfessionalColorTable
     {
         public override Color ToolStripDropDownBackground => Color.FromArgb(30, 30, 30);
         public override Color MenuBorder => Color.FromArgb(45, 45, 45);

@@ -132,6 +132,35 @@ public class AdbService : IAdbService
         }
     }
 
+    public async Task<bool> SetUsbTetheringAsync(string deviceSerial, bool enable)
+    {
+        try
+        {
+            string functions = enable ? "rndis" : "none";
+            _logger.LogInformation("Setting USB functions to {Functions} for device {Serial}.", functions, deviceSerial);
+            var command = $"-s {deviceSerial} shell svc usb setFunctions {functions}";
+            
+            try
+            {
+                var result = await ExecuteAdbCommandAsync(command);
+                _logger.LogInformation("USB functions command completed: {Result}", 
+                    string.IsNullOrWhiteSpace(result) ? "Success (No Output)" : result.Trim());
+                return true;
+            }
+            catch (Exception ex)
+            {
+                // Swapping USB modes causes ADB connection to reset. We treat this expected disconnection as success.
+                _logger.LogInformation("ADB connection state changed during USB mode switch: {Message}", ex.Message);
+                return true;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to set USB tethering state for device {Serial}.", deviceSerial);
+            return false;
+        }
+    }
+
     private async Task<string> GetDevicePropertyAsync(string serialNumber, string propertyName)
     {
         try

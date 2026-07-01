@@ -34,13 +34,6 @@ public class UsbTetherAction : IAutomationAction
     {
         try
         {
-            // Check if AutoRun is set to "never"
-            if (parameters.TryGetValue("AutoRun", out var autoRun) && string.Equals(autoRun, "never", StringComparison.OrdinalIgnoreCase))
-            {
-                _logger.LogInformation("USB tethering auto-run is set to 'never' for device {Serial}. Skipping.", deviceSerial);
-                return;
-            }
-
             // Check if USB tethering is already active
             _logger.LogInformation("Checking USB tethering status on device {Serial}.", deviceSerial);
             if (await _adbService.IsUsbTetheringActiveAsync(deviceSerial))
@@ -49,36 +42,13 @@ public class UsbTetherAction : IAutomationAction
                 return;
             }
 
-            bool shouldTether = false;
-            bool remember = false;
-
-            // Check if AutoRun is set to "always"
-            if (parameters.TryGetValue("AutoRun", out var ar) && string.Equals(ar, "always", StringComparison.OrdinalIgnoreCase))
-            {
-                _logger.LogInformation("Auto-run enabled for device {Serial}. Activating USB tethering automatically.", deviceSerial);
-                shouldTether = true;
-            }
-            else
-            {
-                // Prompt user using custom TetherPromptForm via IUserPromptService
-                var promptResult = await _promptService.PromptTetherConfirmAsync(deviceSerial);
-                shouldTether = promptResult.Result;
-                remember = promptResult.Remember;
-            }
+            // Prompt user using custom TetherPromptForm via IUserPromptService
+            bool shouldTether = await _promptService.PromptTetherConfirmAsync(deviceSerial);
 
             if (!shouldTether)
             {
                 _logger.LogInformation("User chose not to enable USB tethering on device {Serial}.", deviceSerial);
-                if (remember)
-                {
-                    await SaveAutoRunSettingAsync(deviceSerial, "never");
-                }
                 return;
-            }
-
-            if (remember)
-            {
-                await SaveAutoRunSettingAsync(deviceSerial, "always");
             }
 
             _logger.LogInformation("Enabling USB tethering on device {Serial}.", deviceSerial);

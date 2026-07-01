@@ -6,9 +6,6 @@ namespace AndroidUsbAssistant.App.Forms;
 public class TetherPromptForm : Form
 {
     private readonly string _serial;
-    private CheckBox? _chkRemember;
-
-    public bool RememberChoice => _chkRemember?.Checked ?? false;
 
     public TetherPromptForm(string serial)
     {
@@ -19,7 +16,7 @@ public class TetherPromptForm : Form
     private void InitializeComponent()
     {
         Text = "Enable USB Tethering - Android USB Assistant";
-        Size = new Size(440, 210);
+        Size = new Size(400, 180);
         FormBorderStyle = FormBorderStyle.FixedDialog;
         StartPosition = FormStartPosition.CenterScreen;
         MaximizeBox = false;
@@ -35,24 +32,15 @@ public class TetherPromptForm : Form
             Font = new Font("Segoe UI Semibold", 12f, FontStyle.Bold),
             ForeColor = Color.FromArgb(0, 150, 136),
             Location = new Point(20, 15),
-            Size = new Size(400, 25)
+            Size = new Size(360, 25)
         };
 
         // Subtitle/Message
         var lblSubtitle = new Label
         {
-            Text = $"A trusted Android device ({_serial}) has been connected. Would you like to enable USB Tethering now?",
+            Text = $"Do you want to connect to USB tethering for device {_serial}?",
             Location = new Point(20, 45),
-            Size = new Size(385, 45)
-        };
-
-        // Checkbox "Don't ask again"
-        _chkRemember = new CheckBox
-        {
-            Text = "Remember my choice (don't ask again)",
-            Location = new Point(20, 95),
-            Size = new Size(300, 24),
-            FlatStyle = FlatStyle.Flat
+            Size = new Size(350, 45)
         };
 
         // Yes Button
@@ -60,7 +48,7 @@ public class TetherPromptForm : Form
         {
             Text = "Yes",
             Size = new Size(90, 32),
-            Location = new Point(210, 125),
+            Location = new Point(170, 95),
             FlatStyle = FlatStyle.Flat,
             BackColor = Color.FromArgb(0, 150, 136),
             ForeColor = Color.White
@@ -77,7 +65,7 @@ public class TetherPromptForm : Form
         {
             Text = "No",
             Size = new Size(90, 32),
-            Location = new Point(310, 125),
+            Location = new Point(275, 95),
             FlatStyle = FlatStyle.Flat,
             BackColor = Color.FromArgb(45, 45, 48),
             ForeColor = Color.White
@@ -91,7 +79,6 @@ public class TetherPromptForm : Form
 
         Controls.Add(lblTitle);
         Controls.Add(lblSubtitle);
-        Controls.Add(_chkRemember);
         Controls.Add(btnYes);
         Controls.Add(btnNo);
     }

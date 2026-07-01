@@ -8,4 +8,5 @@ public interface IAdbService
     Task<bool> IsAdbAvailableAsync();
     Task<string> ExecuteAdbCommandAsync(string arguments);
     Task<bool> IsUsbTetheringActiveAsync(string deviceSerial);
+    Task<bool> SetUsbTetheringAsync(string deviceSerial, bool enable);
 }

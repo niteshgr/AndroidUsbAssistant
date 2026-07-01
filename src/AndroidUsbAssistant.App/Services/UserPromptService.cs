@@ -6,9 +6,9 @@ namespace AndroidUsbAssistant.App.Services;
 
 public class UserPromptService : IUserPromptService
 {
-    public Task<(bool Result, bool Remember)> PromptTetherConfirmAsync(string deviceSerial)
+    public Task<bool> PromptTetherConfirmAsync(string deviceSerial)
     {
-        var tcs = new TaskCompletionSource<(bool, bool)>();
+        var tcs = new TaskCompletionSource<bool>();
 
         if (SynchronizationContext.Current != null)
         {
@@ -16,14 +16,14 @@ public class UserPromptService : IUserPromptService
             {
                 using var form = new TetherPromptForm(deviceSerial);
                 var result = form.ShowDialog();
-                tcs.SetResult((result == DialogResult.Yes, form.RememberChoice));
+                tcs.SetResult(result == DialogResult.Yes);
             }, null);
         }
         else
         {
             using var form = new TetherPromptForm(deviceSerial);
             var result = form.ShowDialog();
-            tcs.SetResult((result == DialogResult.Yes, form.RememberChoice));
+            tcs.SetResult(result == DialogResult.Yes);
         }
 
         return tcs.Task;
