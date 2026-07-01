@@ -389,9 +389,9 @@ public class StatusForm : Form
                 _lblDeviceConnectionStatus.Text = isActive ? "Active" : "Inactive";
                 _lblDeviceConnectionStatus.ForeColor = isActive ? Color.FromArgb(0, 150, 136) : Color.FromArgb(150, 150, 150);
                 
-                _btnConnectDisconnect.Text = isActive ? "Disconnect" : "Connect";
-                _btnConnectDisconnect.BackColor = isActive ? Color.FromArgb(220, 53, 69) : Color.FromArgb(0, 150, 136); // Red for disconnect, Teal for connect
-                _btnConnectDisconnect.Enabled = true;
+                _btnConnectDisconnect.Text = "Connect";
+                _btnConnectDisconnect.BackColor = isActive ? Color.FromArgb(45, 45, 48) : Color.FromArgb(0, 150, 136); // Gray if active, Teal if inactive
+                _btnConnectDisconnect.Enabled = !isActive;
             }
             catch (Exception)
             {
@@ -419,10 +419,7 @@ public class StatusForm : Form
 
         try
         {
-            var isActive = await _adbService.IsUsbTetheringActiveAsync(device.SerialNumber);
-            bool targetState = !isActive;
-
-            var success = await _adbService.SetUsbTetheringAsync(device.SerialNumber, targetState);
+            var success = await _adbService.SetUsbTetheringAsync(device.SerialNumber, true);
             if (success)
             {
                 await Task.Delay(1000);
